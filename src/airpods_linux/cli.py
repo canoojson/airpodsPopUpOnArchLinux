@@ -2,6 +2,7 @@
 import argparse
 import json
 import logging
+import re
 import sys
 import time
 
@@ -119,19 +120,30 @@ def cmd_watch(args) -> int:
     return 0
 
 
-def paired_airpods() -> str | None:
-    """Dirección del primer dispositivo emparejado con modalias de Apple."""
-    try:
-        import dbus
-        bus = dbus.SystemBus()
-        om = dbus.Interface(bus.get_object("org.bluez", "/"), "org.freedesktop.DBus.ObjectManager")
-        for ifaces in om.GetManagedObjects().values():
-            d = ifaces.get("org.bluez.Device1")
-            if d and d.get("Paired") and str(d.get("Modalias", "")).startswith("bluetooth:v004C"):
-                return str(d["Address"])
-    except Exception:
-        pass
-    return None
+def modalias_product(modalias: str) -> int | None:
+    """bluetooth:v004Cp2027d215C -> 0x2027 (solo dispositivos Apple)."""
+    m = re.match(r"bluetooth:v004Cp([0-9A-Fa-f]{4})", modalias or "")
+    return int(m.group(1), 16) if m else None
+
+
+def select_airpods(devices: list[dict]) -> tuple[dict | None, list[dict]]:
+    """De los dispositivos emparejados, los que son AirPods conocidos.
+    Devuelve (elegido, candidatos); elegido es None si no hay ninguno o hay varios."""
+    candidates = [d for d in devices if d.get("paired") and modalias_product(d.get("modalias")) in MODEL_NAMES]
+    return (candidates[0] if len(candidates) == 1 else None), candidates
+
+
+def paired_devices() -> list[dict]:
+    import dbus
+    bus = dbus.SystemBus()
+    om = dbus.Interface(bus.get_object("org.bluez", "/"), "org.freedesktop.DBus.ObjectManager")
+    out = []
+    for ifaces in om.GetManagedObjects().values():
+        d = ifaces.get("org.bluez.Device1")
+        if d:
+            out.append({"address": str(d["Address"]), "name": str(d.get("Alias", d.get("Name", ""))),
+                        "paired": bool(d.get("Paired")), "modalias": str(d.get("Modalias", ""))})
+    return out
 
 
 def cmd_keys(args) -> int:
@@ -140,9 +152,22 @@ def cmd_keys(args) -> int:
         print(f"Claves para {k.address} en {keys_mod.KEYS_PATH}" if k else "No hay claves guardadas")
         return 0 if k else 1
     from .aap import AapError, fetch_keys
-    address = args.address or paired_airpods()
+    address = args.address
     if not address:
-        sys.exit("No encuentro AirPods emparejados; indica la dirección")
+        try:
+            chosen, candidates = select_airpods(paired_devices())
+        except Exception as e:
+            sys.exit(f"No se pudo consultar BlueZ: {e}")
+        if not candidates:
+            sys.exit("No encuentro AirPods emparejados. Emparéjalos primero o indica su dirección: "
+                     "airpodsctl keys fetch AA:BB:CC:DD:EE:FF")
+        if chosen is None:
+            lines = "\n".join(f"  {c['address']}  {c['name']} "
+                              f"({MODEL_NAMES[modalias_product(c['modalias'])]})" for c in candidates)
+            sys.exit(f"Hay varios AirPods emparejados; elige uno:\n{lines}\n"
+                     "  airpodsctl keys fetch <dirección>")
+        address = chosen["address"]
+        print(f"AirPods: {chosen['name']} ({address})")
     try:
         k = fetch_keys(address)
     except AapError as e:

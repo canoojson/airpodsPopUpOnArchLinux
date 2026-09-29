@@ -166,3 +166,27 @@ def test_real_fixtures_decrypt():
 def test_case_flags(flags, closed, charger):
     c = decrypt_case(case_adv(f"2920{flags}55e4e4"), TEST_KEY)
     assert (c.lid_closed, c.on_charger) == (closed, charger)
+
+
+# --- selección de los AirPods emparejados ---------------------------------------
+
+def test_select_airpods_ignores_other_apple_and_unpaired():
+    from airpods_linux.cli import select_airpods
+    devices = [
+        {"address": "A", "name": "iPhone", "paired": True, "modalias": "bluetooth:v004Cp1234d0001"},
+        {"address": "B", "name": "Sony", "paired": True, "modalias": "usb:v054Cp0001"},
+        {"address": "C", "name": "AirPods Pro", "paired": True, "modalias": "bluetooth:v004Cp2027d215C"},
+        {"address": "D", "name": "AirPods ajenos", "paired": False, "modalias": "bluetooth:v004Cp2014d0001"},
+    ]
+    chosen, candidates = select_airpods(devices)
+    assert chosen["address"] == "C" and len(candidates) == 1
+
+
+def test_select_airpods_ambiguous():
+    from airpods_linux.cli import select_airpods
+    devices = [
+        {"address": "C", "name": "Pro 3", "paired": True, "modalias": "bluetooth:v004Cp2027d215C"},
+        {"address": "E", "name": "Max", "paired": True, "modalias": "bluetooth:v004Cp201Fd0001"},
+    ]
+    chosen, candidates = select_airpods(devices)
+    assert chosen is None and len(candidates) == 2

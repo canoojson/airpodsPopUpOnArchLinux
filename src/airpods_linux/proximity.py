@@ -15,9 +15,17 @@ from .crypto import aes_ecb_decrypt
 PROXIMITY_TYPE = 0x07
 LONG_LEN = 0x19
 SHORT_LEN = 0x11
-MODEL_NAMES = {0x2027: "AirPods Pro 3", 0x2024: "AirPods Pro 2 (USB-C)", 0x2014: "AirPods Pro 2"}
-# Cabecera de un anuncio de caja bien descifrado: bytes 0-1 y bytes 8-11 a cero.
-CASE_MAGIC = bytes.fromhex("2920")
+# ID de producto (el mismo que el modalias de BlueZ, p. ej. bluetooth:v004Cp2027).
+# Pro 3 verificado; el resto según LibrePods.
+MODEL_NAMES = {
+    0x2002: "AirPods", 0x200F: "AirPods (2.ª gen.)", 0x2013: "AirPods (3.ª gen.)",
+    0x2019: "AirPods 4", 0x201B: "AirPods 4 (ANC)",
+    0x200E: "AirPods Pro", 0x2014: "AirPods Pro 2", 0x2024: "AirPods Pro 2 (USB-C)",
+    0x2027: "AirPods Pro 3",
+    0x200A: "AirPods Max", 0x201F: "AirPods Max (USB-C)",
+}
+# Un anuncio de caja bien descifrado empieza por un ID de producto 0x20xx en
+# little-endian (0x2029 en la caja del Pro 3) y tiene los bytes 8-11 a cero.
 
 
 @dataclass(frozen=True)
@@ -149,11 +157,11 @@ def is_case_advert(data: bytes) -> bool:
 
 def decrypt_case(data: bytes, enc_key: bytes) -> CaseAdvert | None:
     """Descifra un anuncio de caja. Devuelve None si no es de *nuestra* caja
-    (con otra clave la cabecera sale aleatoria: probabilidad de falso positivo ~2^-48)."""
+    (con otra clave el bloque sale aleatorio: probabilidad de falso positivo ~2^-40)."""
     if not is_case_advert(data):
         return None
     d = aes_ecb_decrypt(enc_key, data[-16:])
-    if d[:2] != CASE_MAGIC or any(d[8:12]):
+    if d[1] != 0x20 or any(d[8:12]):
         return None
     # Bytes 4-5: auriculares. El orden L/R aún no está verificado (siempre iguales).
     return CaseAdvert(flags=d[2], case=battery_from_byte(d[3]), left=battery_from_byte(d[4]),

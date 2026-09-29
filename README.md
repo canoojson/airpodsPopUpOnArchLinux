@@ -23,6 +23,8 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 | Distribución | Desarrollado en **Arch Linux**. Debería funcionar en cualquier distro con systemd y BlueZ reciente |
 | Escritorio | Cualquiera (notificación). Integración completa con **Noctalia**; animación del popup con **Hyprland** |
 
+Cada instalación reconoce **solo los AirPods de su usuario**: `airpodsctl keys fetch` localiza los AirPods emparejados en tu equipo (si hay varios, te pide elegir) y guarda sus claves. Las direcciones Bluetooth no se usan para identificarlos, porque rotan cada pocos minutos: se reconocen criptográficamente. Por ahora se sigue **un par de AirPods** por usuario.
+
 ¿Lo has probado con otro modelo? Abre un *issue* con la salida de `airpodsctl status --json`.
 
 ## Requisitos
