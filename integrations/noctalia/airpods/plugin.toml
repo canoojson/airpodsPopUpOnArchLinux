@@ -1,0 +1,34 @@
+id = "canoojson/airpods"
+name = "AirPods"
+version = "0.3.0"
+plugin_api = 30
+author = "canoojson"
+license = "GPL-3.0-or-later"
+tags = ["bar", "panel", "bluetooth", "audio"]
+icon = "device-airpods"
+description = "Batería de los AirPods (también con la caja cerrada) y popup al abrir la caja, vía airpodsd. Modo de escucha opcional con airpods-helper."
+
+[[widget]]
+id = "airpods"
+entry = "widget.luau"
+
+[[panel]]
+id = "panel"
+entry = "panel.luau"
+width = 380
+height = 330
+placement = "attached"
+position = "auto"
+open_near_click = true
+
+# Popup estilo iOS al abrir la caja con los auriculares dentro; lo abre airpodsd.
+[[panel]]
+id = "popup"
+entry = "popup.luau"
+width = 380
+height = 280
+position = "bottom_center"
+layer = "overlay"
+persistent = true
+dismiss_on_outside_click = false
+keyboard_focus = "none"

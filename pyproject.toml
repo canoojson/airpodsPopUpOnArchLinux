@@ -1,0 +1,30 @@
+[project]
+name = "airpods-linux"
+version = "0.1.0"
+description = "Batería de AirPods en Linux (también con la caja cerrada) y popup al abrir la caja"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "CREDITS.md"]
+authors = [{ name = "canoojson" }]
+requires-python = ">=3.11"
+dependencies = ["cryptography>=41"]
+# dbus-python y PyGObject vienen del sistema (Arch: python-dbus python-gobject)
+
+[project.urls]
+Homepage = "https://github.com/canoojson/airpodsPopUpOnArchLinux"
+Issues = "https://github.com/canoojson/airpodsPopUpOnArchLinux/issues"
+
+[project.scripts]
+airpodsctl = "airpods_linux.cli:main"
+airpodsd = "airpods_linux.daemon:main"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

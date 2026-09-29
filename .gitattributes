@@ -1,0 +1,5 @@
+# Fuera del paquete de la release (siguen en el repo)
+fixtures/ export-ignore
+tools/ export-ignore
+tests/ export-ignore
+.github/ export-ignore

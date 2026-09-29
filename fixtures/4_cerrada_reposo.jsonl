@@ -1,0 +1,11 @@
+{"t": 1790714475.525, "dt": 14.309, "label": "4_cerrada_reposo", "addr": "FC:CA:25:6F:9A:85", "rssi": -44, "event": "mfg", "hex": "07110622a6dc24e7fb0d5e8dbc2b67ffe8f80c"}
+{"t": 1790714700.316, "dt": 239.1, "label": "4_cerrada_reposo", "addr": "CB:C9:60:F3:4E:2C", "rssi": -51, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790714774.504, "dt": 313.289, "label": "4_cerrada_reposo", "addr": "CB:C9:60:F3:4E:2C", "rssi": -45, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790714784.531, "dt": 323.316, "label": "4_cerrada_reposo", "addr": "CB:C9:60:F3:4E:2C", "rssi": -63, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790714804.584, "dt": 343.368, "label": "4_cerrada_reposo", "addr": "CB:C9:60:F3:4E:2C", "rssi": -48, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790714828.653, "dt": 367.438, "label": "4_cerrada_reposo", "addr": "CB:C9:60:F3:4E:2C", "rssi": -59, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790714836.677, "dt": 375.462, "label": "4_cerrada_reposo", "addr": "CB:C9:60:F3:4E:2C", "rssi": -57, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790714858.729, "dt": 397.513, "label": "4_cerrada_reposo", "addr": "CB:C9:60:F3:4E:2C", "rssi": -59, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790714921.202, "dt": 459.986, "label": "4_cerrada_reposo", "addr": "CB:C9:60:F3:4E:2C", "rssi": -64, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790714977.022, "dt": 515.806, "label": "4_cerrada_reposo", "addr": "CB:C9:60:F3:4E:2C", "rssi": -61, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790715001.09, "dt": 539.875, "label": "4_cerrada_reposo", "addr": "CB:C9:60:F3:4E:2C", "rssi": -44, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}

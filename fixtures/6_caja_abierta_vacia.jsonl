@@ -1,0 +1,11 @@
+{"t": 1790715369.239, "dt": 0.052, "label": "6_caja_abierta_vacia", "addr": "CB:C9:60:F3:4E:2C", "rssi": -37, "event": "mfg", "hex": "0711060b74673ccb9bd464eba667084028d5b0"}
+{"t": 1790715373.173, "dt": 3.986, "label": "6_caja_abierta_vacia", "addr": "CB:C9:60:F3:4E:2C", "rssi": -38, "event": "mfg", "hex": "0711060b74673ccb9bd464eba667084028d5b0"}
+{"t": 1790715381.958, "dt": 12.771, "label": "6_caja_abierta_vacia", "addr": "CB:C9:60:F3:4E:2C", "rssi": -43, "event": "mfg", "hex": "0711060b74673ccb9bd464eba667084028d5b0"}
+{"t": 1790715392.062, "dt": 22.874, "label": "6_caja_abierta_vacia", "addr": "6A:F1:C9:0E:05:48", "rssi": -53, "event": "mfg", "hex": "071901272001aa8f110004d5b1f735ba23a922632d759b2a6db20e"}
+{"t": 1790715396.552, "dt": 27.365, "label": "6_caja_abierta_vacia", "addr": "6A:F1:C9:0E:05:48", "rssi": -50, "event": "mfg", "hex": "071901272001aa8f110004d5b1f735ba23a922632d759b2a6db20e"}
+{"t": 1790715401.112, "dt": 31.925, "label": "6_caja_abierta_vacia", "addr": "6A:F1:C9:0E:05:48", "rssi": -51, "event": "mfg", "hex": "071901272001aa8f110004d5b1f735ba23a922632d759b2a6db20e"}
+{"t": 1790715414.416, "dt": 45.229, "label": "6_caja_abierta_vacia", "addr": "6A:F1:C9:0E:05:48", "rssi": -64, "event": "mfg", "hex": "071901272001aa8f110004d5b1f735ba23a922632d759b2a6db20e"}
+{"t": 1790715422.156, "dt": 52.969, "label": "6_caja_abierta_vacia", "addr": "6A:F1:C9:0E:05:48", "rssi": -54, "event": "mfg", "hex": "071901272001aa8f11000437f0044b799ac461b361606b01a6b6e0"}
+{"t": 1790715422.608, "dt": 53.421, "label": "6_caja_abierta_vacia", "addr": "6A:F1:C9:0E:05:48", "rssi": -53, "event": "mfg", "hex": "071901272001aa8f11000437f0044b799ac461b361606b01a6b6e0"}
+{"t": 1790715424.668, "dt": 55.481, "label": "6_caja_abierta_vacia", "addr": "6A:F1:C9:0E:05:48", "rssi": -52, "event": "mfg", "hex": "071901272001aa8f11000437f0044b799ac461b361606b01a6b6e0"}
+{"t": 1790715426.564, "dt": 57.377, "label": "6_caja_abierta_vacia", "addr": "6A:F1:C9:0E:05:48", "rssi": -54, "event": "mfg", "hex": "071901272001aa8f11000437f0044b799ac461b361606b01a6b6e0"}

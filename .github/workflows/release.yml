@@ -1,0 +1,25 @@
+name: Release
+
+# Publica una release al subir una etiqueta: git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Empaquetar
+        run: |
+          git archive --format=tar.gz --prefix=airpods-linux/ -o airpods-linux.tar.gz HEAD
+          tar -tzf airpods-linux.tar.gz | head
+      - name: Crear release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" airpods-linux.tar.gz install.sh uninstall.sh \
+            --title "$GITHUB_REF_NAME" --generate-notes

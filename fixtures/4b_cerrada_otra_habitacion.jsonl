@@ -1,0 +1,4 @@
+{"t": 1790715075.276, "dt": 40.023, "label": "4b_cerrada_otra_habitacion", "addr": "CB:C9:60:F3:4E:2C", "rssi": -80, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790715095.336, "dt": 60.083, "label": "4b_cerrada_otra_habitacion", "addr": "CB:C9:60:F3:4E:2C", "rssi": -85, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790715127.406, "dt": 92.153, "label": "4b_cerrada_otra_habitacion", "addr": "CB:C9:60:F3:4E:2C", "rssi": -76, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}
+{"t": 1790715143.45, "dt": 108.197, "label": "4b_cerrada_otra_habitacion", "addr": "CB:C9:60:F3:4E:2C", "rssi": -80, "event": "mfg", "hex": "071106da3519cd0db210cf1df6c162d6df9c18"}

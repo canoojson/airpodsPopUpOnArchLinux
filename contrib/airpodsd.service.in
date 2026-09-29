@@ -1,0 +1,16 @@
+[Unit]
+Description=AirPods Linux: batería de los AirPods por BLE y popup al abrir la caja
+Documentation=https://github.com/canoojson/airpodsPopUpOnArchLinux
+After=dbus.socket
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=dbus
+BusName=io.github.AirpodsLinux
+ExecStart=@AIRPODSD@
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

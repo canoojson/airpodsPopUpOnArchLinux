@@ -1,0 +1,9 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+*.btsnoop
+# Nunca subir claves de proximidad
+keys.json
