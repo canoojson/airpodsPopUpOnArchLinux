@@ -12,6 +12,7 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 - **Último estado conocido** con su antigüedad cuando no hay datos frescos ("visto hace 5 min"), nunca un dato viejo presentado como actual.
 - **Sin escaneo continuo:** usa el monitor pasivo de anuncios de BlueZ, que no interfiere con tus otros dispositivos Bluetooth.
 - `airpodsctl` para la terminal y una API D-Bus para integrarlo en otros widgets.
+- **Pausa al quitarte un auricular** (cualquiera, también con el otro en la caja) y reanuda al volver a ponértelo, como en iOS.
 - **Ajustes (⚙) en el panel y el popup:** nombre del dispositivo y actualizaciones.
 - **Actualizaciones** con un comando o un clic, con aviso automático opcional (desactivado salvo que lo actives).
 - Todo local: no usa la cuenta de iCloud, y solo se conecta a internet si activas la comprobación de actualizaciones.
@@ -120,16 +121,27 @@ airpodsctl watch [--json]                  # muestra cada cambio en vivo
 airpodsctl keys fetch [MAC] | show         # claves de proximidad
 airpodsctl rename "Mis AirPods"            # nombre en este equipo ('' = el original)
 airpodsctl update [--check]                # busca una versión nueva e instala (--check: solo mira)
-airpodsctl config get | set update_check true|false
+airpodsctl config get | set <opción> true|false   # update_check, ear_pause, ear_resume
 systemctl --user status airpodsd          # el servicio
 journalctl --user -u airpodsd -f          # sus logs (aperturas y cierres de la caja)
 ```
+
+### Pausa automática al quitarte un auricular
+
+Con los AirPods conectados a este equipo, `airpodsd` pausa lo que esté sonando (Spotify, el navegador, mpv… cualquier reproductor MPRIS) en cuanto te quitas **un** auricular. Vale igual si llevas los dos puestos que si llevas uno y el otro está en la caja.
+
+- **Reanuda** si te vuelves a poner ese mismo auricular en menos de 2 minutos. No reanuda si mientras tanto te quitas también el otro, ni reproduce nada que hubieras pausado tú.
+- Si los AirPods están conectados a otro dispositivo (tu móvil), no toca la reproducción del equipo.
+- **Detección:** con [airpods-helper](https://github.com/superninjv/airpods-helper) en marcha es instantánea, porque usa sus avisos de oreja por AAP. Sin él se usan los anuncios BLE, que tardan unos segundos.
+- Se activa y desactiva en el ⚙ o con `airpodsctl config set ear_pause|ear_resume true|false`.
+- Si usas airpods-helper, desactiva su propia pausa para que no actúen los dos: en `~/.config/airpods-helper/config.toml`, sección `[ear_detection]`, pon `pause_media = false` y `resume_media = false`, y reinicia `airpods-daemon`.
 
 ### Ajustes (⚙)
 
 El panel de la barra y el popup tienen un botón ⚙. El popup no toma el teclado, así que su ⚙ abre el panel directamente en los ajustes. Desde ahí puedes:
 
 - **Cambiar el nombre** del dispositivo. Es el nombre en *este* equipo (BlueZ): lo ven el popup, el panel y tu gestor de Bluetooth. El nombre guardado en los propios AirPods, el que ve tu iPhone, no cambia.
+- **Activar o desactivar** la pausa y la reanudación automáticas.
 - **Activar o desactivar** la comprobación automática de actualizaciones.
 - **Buscar actualizaciones** ahora e instalar la nueva versión con un clic si la hay.
 

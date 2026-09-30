@@ -9,8 +9,10 @@ CONFIG_PATH = config_dir() / "config.json"
 DEFAULTS = {
     "update_check": False,       # comprobar a diario si hay versión nueva (consulta api.github.com)
     "notified_version": None,    # última versión de la que ya se avisó
+    "ear_pause": True,           # pausar al quitarse un auricular
+    "ear_resume": True,          # reanudar al volver a ponérselo
 }
-BOOL_KEYS = {"update_check"}
+BOOL_KEYS = {"update_check", "ear_pause", "ear_resume"}
 
 
 def load(path: Path = CONFIG_PATH) -> dict:

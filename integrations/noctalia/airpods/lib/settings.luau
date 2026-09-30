@@ -49,8 +49,8 @@ local function saveName(status, refresh, rerender)
   end, rerender)
 end
 
-local function setAutoCheck(status, enabled, refresh, rerender)
-  run(status, { "config", "set", "update_check", enabled and "true" or "false" }, "toggle", 8000, function(result)
+local function setOption(status, key, enabled, refresh, rerender)
+  run(status, { "config", "set", key, enabled and "true" or "false" }, "toggle", 8000, function(result)
     if result.exitCode ~= 0 then
       message = { text = "No se pudo guardar el ajuste", color = "error" }
     end
@@ -93,6 +93,18 @@ function M.render(status, opts)
   local latest = (checkResult and checkResult.latest) or upd.latest
   local managed = (checkResult and checkResult.managed) or upd.managed
   local currentName = (status and status.name) or ""
+  local ear = (status and status.ear) or {}
+
+  local function toggleRow(key, title, subtitle, checked, onToggle)
+    return ui.row({ key = key, gap = 10, align = "center" }, {
+      ui.column({ key = key .. "-text", gap = 2, flexGrow = 1 }, {
+        ui.label({ text = title, fontSize = 13 }),
+        ui.label({ text = subtitle, fontSize = 11, color = "on_surface/0.55" }),
+      }),
+      ui.toggle({ key = key .. "-toggle", checked = checked, enabled = busy == nil,
+                  onChange = function(v) onToggle(v == "true") end }),
+    })
+  end
 
   local children = {
     ui.row({ key = "s-header", gap = 8, align = "center" }, {
@@ -111,13 +123,18 @@ function M.render(status, opts)
                   onClick = function() saveName(status, refresh, rerender) end }),
     }),
 
+    toggleRow("s-pause", "Pausar al quitarte un auricular", "También con uno en la caja y otro puesto",
+              ear.pause ~= false, function(v) setOption(status, "ear_pause", v, refresh, rerender) end),
+    toggleRow("s-resume", "Reanudar al volver a ponértelo", "Si vuelve a la oreja en menos de 2 min",
+              ear.resume ~= false, function(v) setOption(status, "ear_resume", v, refresh, rerender) end),
+
     ui.row({ key = "s-auto", gap = 10, align = "center" }, {
       ui.column({ key = "s-auto-text", gap = 2, flexGrow = 1 }, {
         ui.label({ text = "Buscar actualizaciones automáticamente", fontSize = 13 }),
         ui.label({ text = "Consulta GitHub una vez al día", fontSize = 11, color = "on_surface/0.55" }),
       }),
       ui.toggle({ key = "s-auto-toggle", checked = upd.enabled == true, enabled = busy == nil,
-                  onChange = function(v) setAutoCheck(status, v == "true", refresh, rerender) end }),
+                  onChange = function(v) setOption(status, "update_check", v == "true", refresh, rerender) end }),
     }),
   }
 

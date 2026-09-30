@@ -24,6 +24,8 @@ from . import keys as keys_mod
 from . import config as config_mod
 from . import update as update_mod
 from .bluez import get_alias, paired_devices, select_airpods
+from .ear import PAUSE, RESUME, EarPauseLogic
+from .media import MediaController
 from .events import CLOSED, OPENED, CaseEventDetector
 from .proximity import MODEL_NAMES
 from .state import STATE_PATH, StateStore
@@ -36,6 +38,8 @@ IFACE = "io.github.AirpodsLinux1"
 NOCTALIA_PLUGIN = "canoojson/airpods"
 POPUP_PANEL = NOCTALIA_PLUGIN + ":popup"
 UPDATE_INTERVAL_S = 24 * 3600
+HELPER_BUS = "org.costa.AirPods"   # airpods-helper: detección en oreja al instante (AAP)
+HELPER_PATH = "/org/costa/AirPods"
 
 
 def runtime_status_path() -> Path:
@@ -198,6 +202,10 @@ class Daemon:
         self._checking = False
         self._alias = None
         self.service = Service(dbus.SessionBus(), self)
+        self.session_bus = dbus.SessionBus()
+        self.ear = EarPauseLogic()
+        self.media = MediaController(self.session_bus)
+        self._helper_ear = {"left": None, "right": None}
         self.system_bus = dbus.SystemBus()
 
         from .scanner import BleScanner, Tracker
@@ -205,6 +213,7 @@ class Daemon:
         self.scanner = BleScanner(self.tracker.handle, window=(args.on, args.off), passive=not args.no_passive)
         log.info("modo de escaneo: %s", "pasivo (AdvertisementMonitor)" if self.scanner.passive
                  else f"ventanas {args.on}/{args.off} s")
+        self._watch_helper()
 
     def airpods_address(self) -> str | None:
         """MAC de los AirPods emparejados: la de las claves o, sin claves, la que encuentre BlueZ."""
@@ -242,6 +251,9 @@ class Daemon:
             "version": update_mod.current_version(),
             # Ruta absoluta para que los widgets puedan llamar a airpodsctl sin depender del PATH.
             "ctl": str(Path(sys.argv[0]).resolve().with_name("airpodsctl")),
+            "ear": {"pause": bool(self.config.get("ear_pause", True)),
+                    "resume": bool(self.config.get("ear_resume", True)),
+                    "source": "airpods-helper" if self._helper_active() else "ble"},
             "update": {**self.update_info, "enabled": bool(self.config.get("update_check")),
                        "managed": update_mod.managed_install()},
             **self.store.to_dict(),
@@ -266,7 +278,54 @@ class Daemon:
             log.warning("no se pudo escribir %s: %s", path, e)
         return data
 
+    # --- pausa automática al quitarse un auricular -----------------------------
+
+    def _helper_active(self) -> bool:
+        try:
+            return bool(self.session_bus.name_has_owner(HELPER_BUS))
+        except dbus.DBusException:
+            return False
+
+    def _watch_helper(self) -> None:
+        def changed(iface, props, _inv):
+            if iface != HELPER_BUS:
+                return
+            if "EarLeft" in props:
+                self._helper_ear["left"] = bool(props["EarLeft"])
+            if "EarRight" in props:
+                self._helper_ear["right"] = bool(props["EarRight"])
+            if "EarLeft" in props or "EarRight" in props:
+                self._ear_changed(self._helper_ear["left"], self._helper_ear["right"], "airpods-helper")
+        self.session_bus.add_signal_receiver(changed, "PropertiesChanged", "org.freedesktop.DBus.Properties",
+                                             HELPER_BUS, HELPER_PATH)
+        try:
+            obj = self.session_bus.get_object(HELPER_BUS, HELPER_PATH, introspect=False)
+            props = obj.GetAll(HELPER_BUS, dbus_interface="org.freedesktop.DBus.Properties")
+            self._helper_ear = {"left": bool(props.get("EarLeft")), "right": bool(props.get("EarRight"))}
+            self.ear.update(self._helper_ear["left"], self._helper_ear["right"], self.connected(), time.time())
+            log.info("detección en oreja: airpods-helper (instantánea)")
+        except dbus.DBusException:
+            log.info("detección en oreja: anuncios BLE (airpods-helper no está en marcha)")
+
+    def _ear_changed(self, left, right, source: str) -> None:
+        action = self.ear.update(left, right, self.connected(), time.time())
+        if action == PAUSE and self.config.get("ear_pause", True):
+            paused = self.media.pause_playing()
+            log.info("auricular fuera de la oreja (%s): %s", source,
+                     f"pausado {', '.join(p.rsplit('.', 1)[-1] for p in paused)}" if paused else "nada sonando")
+            if not self.config.get("ear_resume", True):
+                self.media.forget()
+        elif action == RESUME and self.config.get("ear_resume", True) and self.media.paused_by_us:
+            resumed = self.media.resume()
+            log.info("auricular de vuelta en la oreja (%s): reanudado %s", source,
+                     ", ".join(p.rsplit('.', 1)[-1] for p in resumed) or "nada")
+        elif action == RESUME:
+            self.media.forget()
+
     def _on_change(self, _store) -> None:
+        # Sin airpods-helper, la oreja se sabe por los anuncios BLE (más lento).
+        if not self._helper_active():
+            self._ear_changed(self.store.value("left_in_ear"), self.store.value("right_in_ear"), "BLE")
         self.service.StateChanged(self.write_status())
         self.popup.update(self.popup_payload())
 
