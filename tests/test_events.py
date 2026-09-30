@@ -86,3 +86,24 @@ def test_no_popup_flapping_with_one_bud_in_ear():
         (pod, ONE_IN_EAR_OTHER_IN_CLOSED_CASE, 3),
     ])
     assert events == [None, None, None, None]
+
+
+# Captura real (19:34): los dos en la caja con el bit 0x20 del byte 8 a 0.
+BOTH_IN_OPEN_B51 = "071901272035aa98510004"
+BOTH_IN_CLOSED_B59 = "071901272035aa98590004"
+
+
+def test_lid_from_both_in_case_even_without_bit5():
+    a = parse_pod_advert(bytes.fromhex(BOTH_IN_CLOSED_B59) + bytes(16))
+    assert a.both_in_case and a.lid_closed is True
+    b = parse_pod_advert(bytes.fromhex(BOTH_IN_OPEN_B51) + bytes(16))
+    assert b.lid_closed is False
+
+
+def test_close_then_open_fires_popup_with_real_bytes():
+    events = run([
+        (pod, BOTH_IN_OPEN_B51, 0),
+        (pod, BOTH_IN_CLOSED_B59, 5),
+        (pod, BOTH_IN_OPEN_B51, 10),
+    ])
+    assert events == [OPENED, CLOSED, OPENED]

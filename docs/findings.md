@@ -222,3 +222,9 @@ Hipótesis sobre los flags, con todas las observaciones (`00` abierta+dentro, `0
 | 0 | desconocido | aparece con y sin auriculares, con y sin cargador |
 
 `airpodsctl status` con la caja cerrada: `L 100 % ⚡ en la caja · R 100 % ⚡ en la caja · Caja 98 % ⚡ tapa cerrada`, en 10 s.
+
+## 13. El bit 0x20 del byte 8 no es "este auricular en la caja"
+
+Captura `9_cerrar_abrir_tras_uso.jsonl` (2026-09-30): con los **dos** auriculares en la caja, el byte 8 vale `0x51` (tapa abierta) y `0x59` (cerrada). El bit 3 (tapa) se comporta bien, pero el bit `0x20` vale **0**, cuando en las capturas del primer día valía 1 (`0x31`/`0x3a`). Los bits 4-6 cambian entre sesiones y no sirven para saber si el emisor está dentro.
+
+Regla adoptada: el bit de tapa de un anuncio de auricular solo se usa si el estado indica **ambos en la caja** (byte 5, bit 2). Con uno fuera (p. ej. en la oreja, que anuncia "abierta" aunque la caja esté cerrada) manda el anuncio cifrado de la caja (flags, bit 3).
