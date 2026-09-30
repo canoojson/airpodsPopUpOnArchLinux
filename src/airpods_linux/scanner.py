@@ -126,14 +126,18 @@ class BleScanner:
             GLib.timeout_add(int(self.window[1] * 1000), self._start)
         return False
 
-    def run(self, duration: float | None = None) -> None:
+    def run(self, duration: float | None = None, scan: bool = True) -> None:
+        """`scan=False`: no pide anuncios a BlueZ (ni monitor ni discovery); solo escucha
+        lo que otros descubran. Útil para diagnosticar interferencias con el audio."""
         self.bus.add_signal_receiver(self._on_added, "InterfacesAdded",
                                      "org.freedesktop.DBus.ObjectManager", BLUEZ)
         self.bus.add_signal_receiver(self._on_changed, "PropertiesChanged",
                                      "org.freedesktop.DBus.Properties", BLUEZ, path_keyword="path")
         if duration:
             GLib.timeout_add(int(duration * 1000), self.loop.quit)
-        if self.passive:
+        if not scan:
+            log.warning("escaneo BLE desactivado (--no-ble)")
+        elif self.passive:
             self._monitor = advmon.register(self.bus, self.adapter_path, self._on_monitor_found,
                                             on_error=self._fallback_to_windows)
         else:

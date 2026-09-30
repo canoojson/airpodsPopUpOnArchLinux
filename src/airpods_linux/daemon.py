@@ -185,6 +185,7 @@ def pct(field: dict | None) -> str:
 
 class Daemon:
     def __init__(self, args):
+        self.args = args
         dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
         self.store = StateStore(STATE_PATH).load()
         self.keys = keys_mod.load()
@@ -433,7 +434,7 @@ class Daemon:
         # Primera comprobación al minuto de arrancar (con la red ya lista) y luego cada día.
         GLib.timeout_add_seconds(60, lambda: (self._periodic_update_check(), False)[1])
         GLib.timeout_add_seconds(UPDATE_INTERVAL_S, self._periodic_update_check)
-        self.scanner.run()
+        self.scanner.run(scan=not self.args.no_ble)
 
 
 def main(argv=None) -> int:
@@ -443,6 +444,7 @@ def main(argv=None) -> int:
     ap.add_argument("--popup-timeout", type=int, default=10)
     ap.add_argument("--popup-panel", default=POPUP_PANEL, help="id del panel de Noctalia para el popup")
     ap.add_argument("--no-passive", action="store_true", help="no usar AdvertisementMonitor")
+    ap.add_argument("--no-ble", action="store_true", help="no escanear anuncios BLE (diagnóstico)")
     ap.add_argument("--on", type=float, default=4, help="ventana de escaneo activa (s), sin modo pasivo")
     ap.add_argument("--off", type=float, default=8, help="pausa entre ventanas (s), sin modo pasivo")
     args = ap.parse_args(argv)
