@@ -28,6 +28,13 @@ local function connect()
   end, 15000)
 end
 
+-- El popup no toma el teclado (keyboard_focus = "none"), así que los ajustes, que
+-- tienen un campo de texto, se abren en el panel normal.
+local function openSettings()
+  panel.close()
+  noctalia.runAsync({ "noctalia", "msg", "panel-open", "canoojson/airpods:panel", "settings" }, function() end, 5000)
+end
+
 function render()
   if state == nil then
     panel.render(ui.column({ padding = 20, align = "center", justify = "center" }, {
@@ -54,7 +61,8 @@ function render()
   panel.render(ui.column({ padding = 16, gap = 14, fill = "surface", radius = 22 }, {
     ui.row({ key = "header", gap = 10, align = "center" }, {
       ui.glyph({ name = "device-airpods", size = 20, color = "primary" }),
-      ui.label({ text = state.model_name or "AirPods", fontSize = 16, fontWeight = "bold", flexGrow = 1 }),
+      ui.label({ text = state.name or state.model_name or "AirPods", fontSize = 16, fontWeight = "bold", flexGrow = 1 }),
+      ui.button({ glyph = "settings", variant = "ghost", tooltip = "Ajustes", onClick = openSettings }),
       ui.button({ glyph = "x", variant = "ghost", onClick = function() panel.close() end }),
     }),
     ui.row({ key = "cards", gap = 10 }, {

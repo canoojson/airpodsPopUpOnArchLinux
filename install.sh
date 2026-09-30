@@ -9,6 +9,8 @@
 #   --no-noctalia    no instala el plugin de Noctalia
 #   --no-bluez       no ofrece activar Experimental en /etc/bluetooth/main.conf
 #   --ref REF        rama o etiqueta a descargar si no se ejecuta desde un clon (por defecto: última release)
+#   --auto-update y|n  activa o no la comprobación diaria de actualizaciones sin preguntar
+#   --update         modo actualización (lo usa `airpodsctl update`): sin preguntas, conserva los ajustes
 #   --uninstall      desinstala (ver uninstall.sh; --purge borra también claves y estado)
 set -euo pipefail
 
@@ -20,7 +22,7 @@ UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 NOCTALIA_PLUGINS="${XDG_DATA_HOME:-$HOME/.local/share}/noctalia/plugins"
 BLUEZ_CONF=/etc/bluetooth/main.conf
 
-WITH_SERVICE=1 WITH_NOCTALIA=1 WITH_BLUEZ=1 REF="" UNINSTALL=0 UNINSTALL_ARGS=()
+WITH_SERVICE=1 WITH_NOCTALIA=1 WITH_BLUEZ=1 REF="" UNINSTALL=0 UNINSTALL_ARGS=() UPDATE=0 AUTO_UPDATE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-service) WITH_SERVICE=0 ;;
@@ -28,8 +30,10 @@ while [ $# -gt 0 ]; do
     --no-bluez) WITH_BLUEZ=0 ;;
     --ref) REF="${2:?--ref necesita un valor}"; shift ;;
     --uninstall) UNINSTALL=1 ;;
+    --update) UPDATE=1; WITH_BLUEZ=0 ;;
+    --auto-update) AUTO_UPDATE="${2:?--auto-update necesita y o n}"; shift ;;
     --purge) UNINSTALL_ARGS+=(--purge) ;;
-    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "Opción desconocida: $1" >&2; exit 2 ;;
   esac
   shift
@@ -183,6 +187,9 @@ if [ "$WITH_SERVICE" = 1 ]; then
 fi
 
 # ---------------------------------------------------------------------------
+if [ "$UPDATE" = 1 ] && [ ! -e "$NOCTALIA_PLUGINS/airpods" ]; then
+  WITH_NOCTALIA=0   # al actualizar no se instala el plugin si el usuario no lo tenía
+fi
 if [ "$WITH_NOCTALIA" = 1 ] && command -v noctalia >/dev/null; then
   step "Plugin de Noctalia ($PLUGIN_ID)"
   dest="$NOCTALIA_PLUGINS/airpods"
@@ -203,13 +210,37 @@ if [ "$WITH_NOCTALIA" = 1 ] && command -v noctalia >/dev/null; then
   else
     warn "Noctalia no está en ejecución; actívalo luego con: noctalia msg plugins enable $PLUGIN_ID"
   fi
-  if command -v hyprctl >/dev/null; then
+  if [ "$UPDATE" = 0 ] && command -v hyprctl >/dev/null; then
     echo "  Opcional (Hyprland): animación de deslizamiento para el popup, en tu config Lua:"
     echo "    hl.layer_rule({ match = { namespace = \"^noctalia-panel\$\" }, animation = \"slide\" })"
   fi
 elif [ "$WITH_NOCTALIA" = 1 ]; then
   warn "Noctalia no está instalado: el aviso al abrir la caja será una notificación de escritorio"
 fi
+
+# ---------------------------------------------------------------------------
+CTL="$DATA_DIR/venv/bin/airpodsctl"
+if [ "$UPDATE" = 1 ]; then
+  step "Actualizado a la versión $("$DATA_DIR/venv/bin/python" -c 'from importlib.metadata import version; print(version("airpods-linux"))')"
+  exit 0
+fi
+
+step "Actualizaciones"
+echo "  Puedes actualizar cuando quieras con:  airpodsctl update  (o desde el ⚙ del panel de Noctalia)."
+echo "  Opcionalmente, airpodsd puede consultar GitHub una vez al día y avisarte si hay versión nueva."
+echo "  Solo se hace una petición a api.github.com; no se envía ningún dato tuyo."
+current_auto="$("$CTL" config get update_check 2>/dev/null || echo false)"
+case "$AUTO_UPDATE" in
+  y|s|yes|si|true) choice=true ;;
+  n|no|false) choice=false ;;
+  *)
+    if ask "¿Activar la comprobación automática de actualizaciones? (se puede cambiar luego)"; then choice=true
+    elif [ -e /dev/tty ] && { exec 3</dev/tty; } 2>/dev/null; then exec 3<&-; choice=false
+    else choice="$current_auto"; fi ;;
+esac
+"$CTL" config set update_check "$choice" >/dev/null
+if [ "$choice" = true ]; then ok "comprobación automática activada"
+else ok "comprobación automática desactivada (actívala con: airpodsctl config set update_check true)"; fi
 
 # ---------------------------------------------------------------------------
 step "Listo. Último paso: las claves de tus AirPods"

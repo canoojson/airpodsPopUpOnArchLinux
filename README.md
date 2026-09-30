@@ -12,7 +12,9 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 - **Último estado conocido** con su antigüedad cuando no hay datos frescos ("visto hace 5 min"), nunca un dato viejo presentado como actual.
 - **Sin escaneo continuo:** usa el monitor pasivo de anuncios de BlueZ, que no interfiere con tus otros dispositivos Bluetooth.
 - `airpodsctl` para la terminal y una API D-Bus para integrarlo en otros widgets.
-- Todo local: no usa internet ni la cuenta de iCloud.
+- **Ajustes (⚙) en el panel y el popup:** nombre del dispositivo y actualizaciones.
+- **Actualizaciones** con un comando o un clic, con aviso automático opcional (desactivado salvo que lo actives).
+- Todo local: no usa la cuenta de iCloud, y solo se conecta a internet si activas la comprobación de actualizaciones.
 
 ## Compatibilidad
 
@@ -83,8 +85,9 @@ El instalador trabaja en tu usuario: no necesita `sudo`, salvo si aceptas activa
 3. Te ofrece activar `Experimental = true` en BlueZ.
 4. Instala y arranca el servicio de usuario `airpodsd`.
 5. Si tienes Noctalia, instala y activa el plugin `canoojson/airpods`.
+6. **Te pregunta si quieres activar la comprobación automática de actualizaciones** (ver [Actualizaciones](#actualizaciones)). Si respondes que no, o si no hay terminal interactiva, queda desactivada.
 
-Opciones: `--no-service`, `--no-noctalia`, `--no-bluez`, `--ref <rama|etiqueta>`, `--uninstall [--purge]`.
+Opciones: `--no-service`, `--no-noctalia`, `--no-bluez`, `--auto-update y|n` (responde de antemano a la pregunta de actualizaciones), `--ref <rama|etiqueta>`, `--uninstall [--purge]`.
 
 ## Primeros pasos
 
@@ -105,7 +108,7 @@ Opciones: `--no-service`, `--no-noctalia`, `--no-bluez`, `--ref <rama|etiqueta>`
      Caja       98 %  ⚡  tapa cerrada · en el cargador
    ```
 4. **Abre la caja** con los auriculares dentro: aparece el popup.
-5. En Noctalia, añade el widget **AirPods** a tu barra (Ajustes → Barra).
+5. En Noctalia, añade el widget **AirPods** a tu barra (Ajustes → Barra). Pulsa el widget para abrir el panel, y el ⚙ para los ajustes.
 
 Sin claves también funciona, pero con la batería en saltos de 10 %, sin datos con la caja cerrada y distinguiendo tus AirPods de los ajenos solo por cercanía.
 
@@ -115,9 +118,20 @@ Sin claves también funciona, pero con la batería en saltos de 10 %, sin datos 
 airpodsctl status [--json] [--scan SEG]   # estado actual o último conocido (--scan 0: solo caché)
 airpodsctl watch [--json]                  # muestra cada cambio en vivo
 airpodsctl keys fetch [MAC] | show         # claves de proximidad
+airpodsctl rename "Mis AirPods"            # nombre en este equipo ('' = el original)
+airpodsctl update [--check]                # busca una versión nueva e instala (--check: solo mira)
+airpodsctl config get | set update_check true|false
 systemctl --user status airpodsd          # el servicio
 journalctl --user -u airpodsd -f          # sus logs (aperturas y cierres de la caja)
 ```
+
+### Ajustes (⚙)
+
+El panel de la barra y el popup tienen un botón ⚙. El popup no toma el teclado, así que su ⚙ abre el panel directamente en los ajustes. Desde ahí puedes:
+
+- **Cambiar el nombre** del dispositivo. Es el nombre en *este* equipo (BlueZ): lo ven el popup, el panel y tu gestor de Bluetooth. El nombre guardado en los propios AirPods, el que ve tu iPhone, no cambia.
+- **Activar o desactivar** la comprobación automática de actualizaciones.
+- **Buscar actualizaciones** ahora e instalar la nueva versión con un clic si la hay.
 
 ### Popup animado en Hyprland
 
@@ -132,7 +146,7 @@ Con `hyprland.conf`, usa la regla `layerrule` equivalente (ver la wiki de Hyprla
 ### Integración con otros widgets
 
 - **D-Bus** (bus de sesión): `io.github.AirpodsLinux`, objeto `/io/github/AirpodsLinux`, interfaz `io.github.AirpodsLinux1`.
-  - `GetState() → s` (JSON)
+  - `GetState() → s` (JSON), `Reload()` (relee la configuración), `CheckUpdates()` (busca versión nueva; el resultado aparece en el campo `update` del estado)
   - Señales `StateChanged(s)`, `CaseOpened(s)` y `CaseClosed()`.
   ```sh
   busctl --user call io.github.AirpodsLinux /io/github/AirpodsLinux io.github.AirpodsLinux1 GetState
@@ -141,6 +155,17 @@ Con `hyprland.conf`, usa la regla `layerrule` equivalente (ver la wiki de Hyprla
 
 Cada campo del JSON lleva `value`, `ts` (época Unix) y `source` (`ble-enc`, `ble-case` o `ble-clear`).
 
+## Actualizaciones
+
+- **Manual, en cualquier momento:** `airpodsctl update`, o el botón del ⚙. Descarga el instalador de la última release y se reinstala conservando tus ajustes, tus claves y la configuración del plugin.
+- **Comprobación automática (opcional, desactivada por defecto):** el instalador te pregunta si quieres activarla. Con ella activa, `airpodsd` consulta una vez al día `api.github.com` (la última release de este repositorio) y, si hay una versión nueva, te avisa **una sola vez** con una notificación y con un aviso en el panel. Nunca instala nada sin que lo pidas.
+  ```sh
+  airpodsctl config set update_check true    # activar
+  airpodsctl config set update_check false   # desactivar
+  ```
+- Si lo instalaste desde un clon de git para desarrollar, `airpodsctl update` no toca nada: actualiza con `git pull`.
+- También puedes volver a ejecutar el instalador de una línea: siempre instala la última versión.
+
 ## Cómo funciona
 
 Los AirPods anuncian por Bluetooth LE un mensaje *Proximity Pairing* de Apple con una parte en claro (batería en pasos de 10 %) y 16 bytes cifrados (batería al 1 %). La caja también anuncia su propio mensaje cifrado, incluso con la tapa cerrada. `airpodsctl keys fetch` pide a los AirPods, por el protocolo AAP (L2CAP 0x1001), su **IRK**, que sirve para reconocer sus direcciones aleatorias, y su **clave de cifrado**. Con ellas `airpodsd` identifica tus AirPods y descifra ambos anuncios. Detalles y capturas en [`docs/findings.md`](docs/findings.md).
@@ -148,7 +173,8 @@ Los AirPods anuncian por Bluetooth LE un mensaje *Proximity Pairing* de Apple co
 ## Privacidad y seguridad
 
 - Las claves se guardan en `~/.config/airpods-linux/keys.json` con permisos `0600`. **No las compartas**: permiten reconocer tus AirPods.
-- No hay conexión a internet ni telemetría. Los logs no incluyen claves ni ubicaciones.
+- Sin telemetría. La única conexión a internet es la consulta de actualizaciones: una petición diaria a `api.github.com` solo si la activas, o cuando la pides tú. No envía ningún dato tuyo, aparte de lo que lleva cualquier petición HTTP (tu IP y la versión instalada en el User-Agent).
+- Los logs no incluyen claves ni ubicaciones.
 - Solo se procesan los anuncios de *tus* AirPods; los de otras personas se descartan.
 
 ## Solución de problemas

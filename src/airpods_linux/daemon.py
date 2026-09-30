@@ -10,6 +10,8 @@ import logging
 import os
 import shutil
 import signal
+import sys
+import threading
 import time
 from pathlib import Path
 
@@ -19,7 +21,9 @@ import dbus.service
 from gi.repository import GLib
 
 from . import keys as keys_mod
-from .bluez import paired_devices, select_airpods
+from . import config as config_mod
+from . import update as update_mod
+from .bluez import get_alias, paired_devices, select_airpods
 from .events import CLOSED, OPENED, CaseEventDetector
 from .proximity import MODEL_NAMES
 from .state import STATE_PATH, StateStore
@@ -31,6 +35,7 @@ OBJ_PATH = "/io/github/AirpodsLinux"
 IFACE = "io.github.AirpodsLinux1"
 NOCTALIA_PLUGIN = "canoojson/airpods"
 POPUP_PANEL = NOCTALIA_PLUGIN + ":popup"
+UPDATE_INTERVAL_S = 24 * 3600
 
 
 def runtime_status_path() -> Path:
@@ -40,13 +45,23 @@ def runtime_status_path() -> Path:
 
 
 class Service(dbus.service.Object):
-    def __init__(self, bus, get_state):
+    def __init__(self, bus, daemon):
         super().__init__(dbus.service.BusName(BUS_NAME, bus), OBJ_PATH)
-        self._get_state = get_state
+        self._daemon = daemon
 
     @dbus.service.method(IFACE, out_signature="s")
     def GetState(self):
-        return json.dumps(self._get_state())
+        return json.dumps(self._daemon.state())
+
+    @dbus.service.method(IFACE)
+    def Reload(self):
+        """Relee config.json y el nombre del dispositivo (lo llama airpodsctl config/rename)."""
+        self._daemon.reload()
+
+    @dbus.service.method(IFACE)
+    def CheckUpdates(self):
+        """Busca una versión nueva ya; el resultado aparece en el estado ('update')."""
+        self._daemon.check_updates(manual=True)
 
     @dbus.service.signal(IFACE, signature="s")
     def StateChanged(self, state_json):
@@ -178,7 +193,11 @@ class Daemon:
         self._popup_timer = None
         self._refresh_timer = None
         self._last_connected = None
-        self.service = Service(dbus.SessionBus(), self.state)
+        self.config = config_mod.load()
+        self.update_info = {"checked": None, "latest": None, "available": False, "error": None}
+        self._checking = False
+        self._alias = None
+        self.service = Service(dbus.SessionBus(), self)
         self.system_bus = dbus.SystemBus()
 
         from .scanner import BleScanner, Tracker
@@ -219,13 +238,19 @@ class Daemon:
             "address": address,
             # None = los AirPods no están emparejados con este equipo (no se pueden conectar)
             "connected": self.connected(address),
+            "name": self._device_name(address),
+            "version": update_mod.current_version(),
+            # Ruta absoluta para que los widgets puedan llamar a airpodsctl sin depender del PATH.
+            "ctl": str(Path(sys.argv[0]).resolve().with_name("airpodsctl")),
+            "update": {**self.update_info, "enabled": bool(self.config.get("update_check")),
+                       "managed": update_mod.managed_install()},
             **self.store.to_dict(),
         }
 
     def popup_payload(self) -> dict:
         st = self.state()
         g = self.store.get
-        st["title"] = st["model_name"]
+        st["title"] = st["name"] or st["model_name"]
         st["summary"] = f"Izquierdo {pct(g('left'))} · Derecho {pct(g('right'))} · Caja {pct(g('case'))}"
         return st
 
@@ -290,10 +315,65 @@ class Daemon:
         self.popup.close()
         return False
 
+    def _device_name(self, address: str | None) -> str | None:
+        if address and self._alias is None:
+            self._alias = get_alias(address) or ""
+        return self._alias or None
+
+    def reload(self) -> None:
+        was_enabled = self.config.get("update_check")
+        self.config = config_mod.load()
+        self._alias = None
+        log.info("configuración recargada (comprobar actualizaciones: %s)",
+                 "sí" if self.config.get("update_check") else "no")
+        if self.config.get("update_check") and not was_enabled:
+            self.check_updates()
+        self._on_change(self.store)
+
+    # --- actualizaciones -------------------------------------------------------
+
+    def _periodic_update_check(self) -> bool:
+        if self.config.get("update_check"):
+            self.check_updates()
+        return True
+
+    def check_updates(self, manual: bool = False) -> None:
+        """Consulta GitHub en un hilo (no bloquea el bucle BLE) y avisa una vez por versión."""
+        if self._checking:
+            return
+        self._checking = True
+
+        def worker():
+            info = update_mod.check()
+            GLib.idle_add(self._update_checked, info, manual)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _update_checked(self, info: dict, manual: bool) -> bool:
+        self._checking = False
+        self.update_info = {"checked": time.time(), "latest": info["latest"],
+                            "available": info["available"], "error": info["error"]}
+        if info["error"]:
+            log.warning("no se pudo comprobar si hay actualizaciones: %s", info["error"])
+        elif info["available"]:
+            log.info("versión nueva disponible: %s (instalada %s)", info["latest"], info["current"])
+            if not manual and self.config.get("notified_version") != info["latest"]:
+                self.config["notified_version"] = info["latest"]
+                config_mod.save(self.config)
+                if shutil.which("notify-send"):
+                    spawn(["notify-send", "-a", "AirPods", "-i", "software-update-available",
+                           f"AirPods Linux {info['latest']} disponible",
+                           "Actualiza con: airpodsctl update (o desde el ⚙ del panel)"])
+        self._on_change(self.store)
+        return False
+
     def run(self) -> None:
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.scanner.quit)
         self.write_status()
         GLib.timeout_add_seconds(5, self._poll_connection)
+        # Primera comprobación al minuto de arrancar (con la red ya lista) y luego cada día.
+        GLib.timeout_add_seconds(60, lambda: (self._periodic_update_check(), False)[1])
+        GLib.timeout_add_seconds(UPDATE_INTERVAL_S, self._periodic_update_check)
         self.scanner.run()
 
 

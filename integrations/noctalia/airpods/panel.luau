@@ -4,6 +4,7 @@
 -- selector de modo de escucha al estilo de iOS.
 
 local common = require("./lib/common.luau")
+local settings = require("./lib/settings.luau")
 
 local STATUS_KEY = "airpods.status"
 local TRACK_WIDTH = 320
@@ -20,6 +21,7 @@ local panelOpen = false
 local busy = false
 local pendingMode = nil
 local connecting = false
+local view = "main"     -- "main" | "settings"
 local render
 
 local function hasFeature(name)
@@ -136,13 +138,27 @@ end
 render = function()
   if not panelOpen then return end
 
-  if status == nil or common.lowestPod(status) == nil then
-    panel.render(ui.column({ padding = 20, gap = 10, align = "center", justify = "center", fill = "surface", radius = 16 }, {
-      ui.glyph({ name = "device-airpods", size = 32, color = "on_surface/0.4" }),
-      ui.label({ text = status == nil and "airpodsd no está en ejecución" or "Sin datos todavía", fontSize = 15, fontWeight = "bold" }),
-      ui.label({ text = status == nil and "systemctl --user start airpodsd" or "Abre la caja cerca del equipo",
-                 fontSize = 12, color = "on_surface/0.6" }),
+  if view == "settings" then
+    panel.render(settings.render(status, {
+      common = common, refresh = refresh, rerender = function() render() end,
+      back = function() view = "main"; settings.reset(); render() end,
     }))
+    return
+  end
+
+  if status == nil or common.lowestPod(status) == nil then
+    local empty = {}
+    if status ~= nil then
+      table.insert(empty, ui.row({ key = "gear-row", justify = "end" }, {
+        ui.button({ glyph = "settings", variant = "ghost", tooltip = "Ajustes", onClick = function() view = "settings"; render() end }),
+      }))
+    end
+    table.insert(empty, ui.glyph({ key = "empty-icon", name = "device-airpods", size = 32, color = "on_surface/0.4" }))
+    table.insert(empty, ui.label({ key = "empty-title", text = status == nil and "airpodsd no está en ejecución" or "Sin datos todavía",
+                                   fontSize = 15, fontWeight = "bold" }))
+    table.insert(empty, ui.label({ key = "empty-hint", text = status == nil and "systemctl --user start airpodsd" or "Abre la caja cerca del equipo",
+                                   fontSize = 12, color = "on_surface/0.6" }))
+    panel.render(ui.column({ padding = 20, gap = 10, align = "center", justify = "center", fill = "surface", radius = 16 }, empty))
     return
   end
 
@@ -156,10 +172,12 @@ render = function()
     ui.row({ key = "header", gap = 10, align = "center" }, {
       ui.glyph({ name = "device-airpods", size = 22, color = "primary" }),
       ui.column({ key = "title", gap = 2, flexGrow = 1 }, {
-        ui.label({ text = status.model_name or "AirPods", fontSize = 16, fontWeight = "bold" }),
+        ui.label({ text = status.name or status.model_name or "AirPods", fontSize = 16, fontWeight = "bold" }),
         ui.label({ text = "Visto " .. common.ago(status.last_seen), fontSize = 11,
                    color = stale and "error/0.8" or "on_surface/0.55" }),
       }),
+      ui.button({ key = "gear", glyph = "settings", variant = "ghost", tooltip = "Ajustes",
+                  onClick = function() view = "settings"; render() end }),
     }),
     ui.row({ key = "batteries", gap = 10 }, {
       common.card("left", "device-airpods", "Izquierdo", common.field(status, "left"), common.where(status, "left"), { iconSize = 24, dim = stale }),
@@ -176,6 +194,12 @@ render = function()
                                       fontSize = 12, color = "on_surface/0.6" }))
   end
   ancSection(children)
+  local upd = status.update
+  if upd ~= nil and upd.available then
+    table.insert(children, ui.button({ key = "update-banner", glyph = "download", variant = "outline",
+                                       text = "Versión " .. tostring(upd.latest) .. " disponible",
+                                       onClick = function() view = "settings"; render() end }))
+  end
 
   panel.render(ui.column({ padding = 16, gap = 14, fill = "surface", radius = 16 }, children))
 end
@@ -189,8 +213,10 @@ function update()
   refresh()
 end
 
-function onOpen(_context)
+function onOpen(context)
   panelOpen = true
+  view = (context == "settings") and "settings" or "main"
+  settings.reset()
   status = common.decode(noctalia.state.get(STATUS_KEY))
   panel.setWantsSecondTicks(true) -- refresca cada segundo mientras está abierto
   render()

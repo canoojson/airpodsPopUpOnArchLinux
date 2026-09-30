@@ -152,6 +152,75 @@ def cmd_keys(args) -> int:
     return 0
 
 
+def notify_daemon() -> None:
+    """Pide a airpodsd que relea la configuración (si está en marcha)."""
+    try:
+        import dbus
+        dbus.SessionBus().get_object("io.github.AirpodsLinux", "/io/github/AirpodsLinux").Reload(
+            dbus_interface="io.github.AirpodsLinux1")
+    except Exception:
+        pass
+
+
+def cmd_update(args) -> int:
+    from . import update
+    info = update.check()
+    if args.json:
+        print(json.dumps({**info, "managed": update.managed_install()}))
+        return 0 if info["error"] is None else 1
+    if info["error"]:
+        print(f"No se pudo consultar GitHub: {info['error']}", file=sys.stderr)
+        return 1
+    if not info["available"]:
+        print(f"Tienes la última versión ({info['current']}).")
+        return 0
+    print(f"Nueva versión disponible: {info['latest']} (tienes {info['current']})\n  {info['url']}")
+    if args.check:
+        return 0
+    if not update.managed_install():
+        print("Esta es una instalación de desarrollo: actualiza con git pull.")
+        return 1
+    if not args.yes and sys.stdin.isatty():
+        if input("¿Actualizar ahora? [s/N] ").strip().lower() not in ("s", "si", "sí", "y", "yes"):
+            return 0
+    return update.run_installer()
+
+
+def cmd_config(args) -> int:
+    from . import config
+    if args.action == "get":
+        cfg = config.load()
+        print(json.dumps(cfg if args.key is None else cfg.get(args.key), indent=2))
+        return 0
+    if args.key is None or args.value is None:
+        sys.exit("uso: airpodsctl config set <opción> <valor>")
+    try:
+        config.set_value(args.key, args.value)
+    except (KeyError, ValueError) as e:
+        sys.exit(str(e))
+    notify_daemon()
+    print(f"{args.key} = {config.load()[args.key]}")
+    return 0
+
+
+def cmd_rename(args) -> int:
+    k = keys_mod.load()
+    address = k.address if k else None
+    if not address:
+        chosen, _ = select_airpods(paired_devices())
+        address = chosen and chosen["address"]
+    if not address:
+        sys.exit("No encuentro los AirPods emparejados")
+    from .bluez import get_alias, set_alias
+    try:
+        set_alias(address, args.name.strip())
+    except Exception as e:
+        sys.exit(f"No se pudo cambiar el nombre: {e}")
+    notify_daemon()
+    print(f"Nombre en este equipo: {get_alias(address)}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="airpodsctl")
     ap.add_argument("-v", "--verbose", action="store_true")
@@ -173,6 +242,22 @@ def main(argv=None) -> int:
     p.add_argument("action", choices=["fetch", "show"])
     p.add_argument("address", nargs="?")
     p.set_defaults(func=cmd_keys)
+
+    p = sub.add_parser("update", help="busca una versión nueva y actualiza")
+    p.add_argument("--check", action="store_true", help="solo comprobar")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("-y", "--yes", action="store_true", help="no preguntar")
+    p.set_defaults(func=cmd_update)
+
+    p = sub.add_parser("config", help="preferencias (update_check)")
+    p.add_argument("action", choices=["get", "set"])
+    p.add_argument("key", nargs="?")
+    p.add_argument("value", nargs="?")
+    p.set_defaults(func=cmd_config)
+
+    p = sub.add_parser("rename", help="cambia el nombre de los AirPods en este equipo ('' = original)")
+    p.add_argument("name")
+    p.set_defaults(func=cmd_rename)
 
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING,

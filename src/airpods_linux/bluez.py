@@ -28,3 +28,23 @@ def paired_devices() -> list[dict]:
             out.append({"address": str(d["Address"]), "name": str(d.get("Alias", d.get("Name", ""))),
                         "paired": bool(d.get("Paired")), "modalias": str(d.get("Modalias", ""))})
     return out
+
+
+def device_path(address: str, adapter: str = "/org/bluez/hci0") -> str:
+    return f"{adapter}/dev_{address.upper().replace(':', '_')}"
+
+
+def get_alias(address: str) -> str | None:
+    import dbus
+    try:
+        return str(dbus.SystemBus().get_object("org.bluez", device_path(address)).Get(
+            "org.bluez.Device1", "Alias", dbus_interface="org.freedesktop.DBus.Properties"))
+    except dbus.DBusException:
+        return None
+
+
+def set_alias(address: str, name: str) -> None:
+    """Nombre del dispositivo en este equipo (BlueZ). Cadena vacía = volver al nombre original."""
+    import dbus
+    dbus.SystemBus().get_object("org.bluez", device_path(address)).Set(
+        "org.bluez.Device1", "Alias", dbus.String(name), dbus_interface="org.freedesktop.DBus.Properties")

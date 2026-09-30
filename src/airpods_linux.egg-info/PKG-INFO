@@ -1,6 +1,0 @@
-Metadata-Version: 2.4
-Name: airpods-linux
-Version: 0.1.0
-Summary: Estado de AirPods Pro 3 en Linux a partir de anuncios BLE
-Requires-Python: >=3.11
-Requires-Dist: cryptography

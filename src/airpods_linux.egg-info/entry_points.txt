@@ -1,3 +1,0 @@
-[console_scripts]
-airpodsctl = airpods_linux.cli:main
-airpodsd = airpods_linux.daemon:main
