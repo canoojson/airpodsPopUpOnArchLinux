@@ -194,7 +194,9 @@ Los AirPods anuncian por Bluetooth LE un mensaje *Proximity Pairing* de Apple co
 ~/.local/share/airpods-linux/src/uninstall.sh --purge  # lo borra todo
 ```
 
-No revierte `Experimental = true` en BlueZ.
+Borra el servicio, los comandos, el plugin de Noctalia, el programa, los logs y el estado en memoria, y al final lista lo que conserva. No revierte `Experimental = true` en BlueZ.
+
+Para **actualizar o reparar** no hace falta desinstalar: el instalador detecta la versión que tienes ("Actualizando de la versión X a la Y"), para el servicio, rehace el entorno desde cero y vuelve a arrancarlo. Si algo falla, el registro completo está en `~/.cache/airpods-linux/install.log`.
 
 ## Desarrollo
 

@@ -56,8 +56,23 @@ ask() {
 
 SRC=""
 TMP=""
-cleanup() { [ -n "$TMP" ] && rm -rf "$TMP"; }
+# Ojo: la función de limpieza no puede acabar en un test fallido, o el script entero
+# devolvería error aunque todo haya ido bien.
+cleanup() { if [ -n "$TMP" ]; then rm -rf "$TMP"; fi; }
 trap cleanup EXIT
+
+# Todo lo que se muestra queda también en un log, para poder diagnosticar fallos.
+LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/airpods-linux"
+mkdir -p "$LOG_DIR"
+LOG="$LOG_DIR/install.log"
+exec > >(tee "$LOG") 2>&1
+echo "# install.sh $(date '+%F %T') · args: ${*:-(ninguno)}"
+
+installed_version() {
+  [ -x "$DATA_DIR/venv/bin/python" ] || return 1
+  "$DATA_DIR/venv/bin/python" -c 'from importlib.metadata import version; print(version("airpods-linux"))' 2>/dev/null
+}
+OLD_VERSION="$(installed_version || true)"
 
 script_dir() {
   local src="${BASH_SOURCE[0]:-}"
@@ -132,7 +147,19 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "Instalando en $DATA_DIR"
+NEW_VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$SRC/pyproject.toml" | head -1)"
+if [ -n "$OLD_VERSION" ]; then
+  if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then step "Reinstalando la versión $NEW_VERSION en $DATA_DIR"
+  else step "Actualizando de la versión $OLD_VERSION a la $NEW_VERSION en $DATA_DIR"; fi
+elif [ -d "$DATA_DIR" ]; then
+  step "Reparando una instalación incompleta en $DATA_DIR (versión $NEW_VERSION)"
+else
+  step "Instalando la versión $NEW_VERSION en $DATA_DIR"
+fi
+# El servicio usa los ficheros que se van a sustituir: se para y se vuelve a arrancar al final.
+if [ "$WITH_SERVICE" = 1 ] && systemctl --user is-active --quiet airpodsd.service 2>/dev/null; then
+  systemctl --user stop airpodsd.service && ok "airpodsd detenido mientras se instala"
+fi
 mkdir -p "$DATA_DIR"
 if [ "$SRC" != "$DATA_DIR/src" ]; then
   rm -rf "$DATA_DIR/src.new"
@@ -141,11 +168,16 @@ if [ "$SRC" != "$DATA_DIR/src" ]; then
   rm -rf "$DATA_DIR/src"
   mv "$DATA_DIR/src.new" "$DATA_DIR/src"
 fi
-# --system-site-packages: dbus-python y PyGObject vienen del sistema.
-[ -x "$DATA_DIR/venv/bin/python" ] || python3 -m venv --system-site-packages "$DATA_DIR/venv"
-"$DATA_DIR/venv/bin/python" -m pip install --quiet --disable-pip-version-check --upgrade "$DATA_DIR/src" \
-  || die "pip no pudo instalar el paquete"
-ok "entorno Python listo"
+# Entorno nuevo en cada instalación: nada de la versión anterior (ni de un Python
+# antiguo del sistema) puede quedarse mezclado. --system-site-packages: dbus-python
+# y PyGObject vienen del sistema.
+python3 -m venv --clear --system-site-packages "$DATA_DIR/venv" || die "no se pudo crear el entorno Python"
+"$DATA_DIR/venv/bin/python" -m pip install --quiet --disable-pip-version-check --no-cache-dir "$DATA_DIR/src" \
+  || die "pip no pudo instalar el paquete (detalles en $LOG)"
+rm -rf "$DATA_DIR/src/build" "$DATA_DIR"/src/src/*.egg-info
+got="$(installed_version || true)"
+[ "$got" = "$NEW_VERSION" ] || die "tras instalar, la versión es '$got' y no $NEW_VERSION (detalles en $LOG)"
+ok "entorno Python listo (versión $got)"
 
 mkdir -p "$BIN_DIR"
 for b in airpodsctl airpodsd; do ln -sf "$DATA_DIR/venv/bin/$b" "$BIN_DIR/$b"; done
@@ -180,10 +212,14 @@ if [ "$WITH_SERVICE" = 1 ]; then
   sed "s|@AIRPODSD@|$DATA_DIR/venv/bin/airpodsd|" "$DATA_DIR/src/contrib/airpodsd.service.in" > "$UNIT_DIR/airpodsd.service"
   systemctl --user daemon-reload
   systemctl --user enable airpodsd.service >/dev/null 2>&1
-  systemctl --user restart airpodsd.service
-  sleep 1
+  systemctl --user reset-failed airpodsd.service 2>/dev/null || true
+  systemctl --user restart airpodsd.service || true
+  sleep 2
   if systemctl --user is-active --quiet airpodsd; then ok "airpodsd activo (journalctl --user -u airpodsd -f)"
-  else warn "airpodsd no arrancó: journalctl --user -u airpodsd -e"; fi
+  else
+    warn "airpodsd no arrancó. Últimas líneas de su log:"
+    journalctl --user -u airpodsd -n 15 --no-pager 2>/dev/null | sed 's/^/    /' || true
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -221,7 +257,7 @@ fi
 # ---------------------------------------------------------------------------
 CTL="$DATA_DIR/venv/bin/airpodsctl"
 if [ "$UPDATE" = 1 ]; then
-  step "Actualizado a la versión $("$DATA_DIR/venv/bin/python" -c 'from importlib.metadata import version; print(version("airpods-linux"))')"
+  step "Listo: versión $NEW_VERSION instalada${OLD_VERSION:+ (antes $OLD_VERSION)}"
   exit 0
 fi
 
@@ -243,7 +279,12 @@ if [ "$choice" = true ]; then ok "comprobación automática activada"
 else ok "comprobación automática desactivada (actívala con: airpodsctl config set update_check true)"; fi
 
 # ---------------------------------------------------------------------------
-step "Listo. Último paso: las claves de tus AirPods"
+if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/airpods-linux/keys.json" ]; then
+  step "Listo${OLD_VERSION:+: actualizado de $OLD_VERSION a $NEW_VERSION}"
+  echo "  Se conservan las claves de tus AirPods. Comprueba el estado con:  airpodsctl status"
+  exit 0
+fi
+step "Listo${OLD_VERSION:+: actualizado de $OLD_VERSION a $NEW_VERSION}. Último paso: las claves de tus AirPods"
 cat <<EOF
   1. Empareja los AirPods con este equipo (bluetoothctl o el gestor de Bluetooth) y conéctalos.
   2. Con la caja abierta cerca, ejecuta:   airpodsctl keys fetch
