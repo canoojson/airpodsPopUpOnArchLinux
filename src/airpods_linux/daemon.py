@@ -72,9 +72,50 @@ def noctalia_running() -> bool:
     return False
 
 
-def spawn(argv: list[str]) -> None:
+GRAPHICAL_VARS = ("WAYLAND_DISPLAY", "DISPLAY", "HYPRLAND_INSTANCE_SIGNATURE", "XDG_CURRENT_DESKTOP",
+                  "DBUS_SESSION_BUS_ADDRESS")
+
+
+def systemd_user_environment() -> dict[str, str]:
+    """Entorno actual del gestor systemd de usuario (la sesión gráfica lo rellena al arrancar)."""
     try:
-        GLib.spawn_async(argv, flags=GLib.SpawnFlags.SEARCH_PATH | GLib.SpawnFlags.STDOUT_TO_DEV_NULL
+        mgr = dbus.SessionBus().get_object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
+        env = mgr.Get("org.freedesktop.systemd1.Manager", "Environment",
+                      dbus_interface="org.freedesktop.DBus.Properties")
+        return dict(str(e).split("=", 1) for e in env if "=" in str(e))
+    except dbus.DBusException:
+        return {}
+
+
+def graphical_env(base: dict[str, str] | None = None, manager_env: dict[str, str] | None = None,
+                  runtime_dir: str | None = None) -> dict[str, str]:
+    """Entorno para lanzar clientes gráficos (noctalia msg, notify-send).
+
+    airpodsd puede arrancar antes que la sesión gráfica (default.target), así que su
+    propio entorno no tiene WAYLAND_DISPLAY. Se completa en el momento de lanzar:
+    primero con el entorno de systemd, y si no, con el socket de Wayland del runtime dir.
+    """
+    env = dict(os.environ if base is None else base)
+    if not env.get("WAYLAND_DISPLAY"):
+        mgr = systemd_user_environment() if manager_env is None else manager_env
+        for k in GRAPHICAL_VARS:
+            if mgr.get(k) and not env.get(k):
+                env[k] = mgr[k]
+    if not env.get("WAYLAND_DISPLAY"):
+        rt = Path(runtime_dir or env.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+        sockets = sorted(p.name for p in rt.glob("wayland-*") if not p.name.endswith(".lock") and p.is_socket())
+        if sockets:
+            env["WAYLAND_DISPLAY"] = sockets[0]
+    return env
+
+
+def spawn(argv: list[str]) -> None:
+    env = graphical_env()
+    if not env.get("WAYLAND_DISPLAY"):
+        log.warning("sin sesión Wayland: no se puede mostrar el popup")
+    try:
+        GLib.spawn_async(argv, envp=[f"{k}={v}" for k, v in env.items()],
+                         flags=GLib.SpawnFlags.SEARCH_PATH | GLib.SpawnFlags.STDOUT_TO_DEV_NULL
                          | GLib.SpawnFlags.STDERR_TO_DEV_NULL)
     except GLib.Error as e:
         log.warning("no se pudo lanzar %s: %s", argv[0], e.message)
