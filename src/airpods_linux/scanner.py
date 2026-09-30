@@ -147,7 +147,11 @@ class BleScanner:
             self._stop()
 
     def burst(self, seconds: float) -> None:
-        """Escaneo activo temporal (p. ej. mientras se muestra el popup) sobre el modo pasivo."""
+        """Escaneo activo temporal sobre el modo pasivo.
+
+        No usar al abrir la caja: coincide con la conexión de los AirPods y el escaneo
+        activo satura la radio, el audio A2DP falla al arrancar y los reproductores
+        (p. ej. el vídeo del navegador) se quedan colgados. El monitor pasivo ya basta."""
         if not self.passive:
             return  # las ventanas ya escanean activamente
         if getattr(self, "_burst_timer", None):

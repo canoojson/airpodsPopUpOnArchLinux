@@ -347,13 +347,11 @@ class Daemon:
             log.info("popup: %s", "noctalia" if self.popup.mode != "none" else "desactivado")
             self.service.CaseOpened(json.dumps(payload))
             self.popup.show(payload)
-            self.scanner.burst(self.popup_timeout)
             self._arm_popup_timeout()
         elif event == CLOSED:
             log.info("caja cerrada")
             self.service.CaseClosed()
             self.popup.close()
-            self.scanner.end_burst()
 
     def _arm_popup_timeout(self) -> None:
         if self._popup_timer:
