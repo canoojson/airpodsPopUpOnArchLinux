@@ -23,6 +23,7 @@ from gi.repository import GLib
 from . import keys as keys_mod
 from . import config as config_mod
 from . import update as update_mod
+from .audio import AudioRouter, PactlSinks, airpods_sink_prefix
 from .bluez import get_alias, paired_devices, select_airpods
 from .ear import PAUSE, RESUME, EarPauseLogic
 from .media import MediaController
@@ -206,6 +207,10 @@ class Daemon:
         self.session_bus = dbus.SessionBus()
         self.ear = EarPauseLogic()
         self.media = MediaController(self.session_bus)
+        sinks = PactlSinks()
+        self.audio = AudioRouter(sinks) if sinks.available() else None
+        if not self.audio:
+            log.warning("pactl no está instalado: el audio no seguirá a la oreja")
         self._helper_ear = {"left": None, "right": None}
         self.system_bus = dbus.SystemBus()
 
@@ -252,6 +257,8 @@ class Daemon:
             "version": update_mod.current_version(),
             # Ruta absoluta para que los widgets puedan llamar a airpodsctl sin depender del PATH.
             "ctl": str(Path(sys.argv[0]).resolve().with_name("airpodsctl")),
+            "audio": {"follow_ear": bool(self.config.get("audio_follow_ear", True)),
+                      "available": self.audio is not None},
             "ear": {"pause": bool(self.config.get("ear_pause", True)),
                     "resume": bool(self.config.get("ear_resume", True)),
                     "source": "airpods-helper" if self._helper_active() else "ble"},
@@ -310,7 +317,11 @@ class Daemon:
             log.info("detección en oreja: anuncios BLE (airpods-helper no está en marcha)")
 
     def _ear_changed(self, left, right, source: str, left_case=None, right_case=None) -> None:
-        action = self.ear.update(source, left, right, self.connected(), time.time(), left_case, right_case)
+        prev_count = self.ear.count
+        connected = self.connected()
+        action = self.ear.update(source, left, right, connected, time.time(), left_case, right_case)
+        if connected and self.audio and self.config.get("audio_follow_ear", True):
+            self.audio.on_ear_count(prev_count, self.ear.count)
         if action == PAUSE and self.config.get("ear_pause", True):
             paused = self.media.pause_playing()
             log.info("auricular fuera de la oreja (%s): %s", source,
@@ -331,6 +342,18 @@ class Daemon:
                           self.store.value("left_in_case"), self.store.value("right_in_case"))
         self.service.StateChanged(self.write_status())
         self.popup.update(self.popup_payload())
+
+    def _audio_tick(self) -> bool:
+        """Cada 2 s con los AirPods conectados: al conectarse en la caja, no robar el audio."""
+        if not self.audio or not self.config.get("audio_follow_ear", True):
+            return True
+        address = self.airpods_address()
+        if not address or self.connected(address) is not True:
+            self.audio.disconnected()
+            return True
+        self.audio.prefix = airpods_sink_prefix(address)
+        self.audio.tick(time.time(), self.ear.count)
+        return True
 
     def _poll_connection(self) -> bool:
         # "Conectado a este equipo" no llega por BLE: se consulta a BlueZ periódicamente.
@@ -431,6 +454,7 @@ class Daemon:
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.scanner.quit)
         self.write_status()
         GLib.timeout_add_seconds(5, self._poll_connection)
+        GLib.timeout_add_seconds(2, self._audio_tick)
         # Primera comprobación al minuto de arrancar (con la red ya lista) y luego cada día.
         GLib.timeout_add_seconds(60, lambda: (self._periodic_update_check(), False)[1])
         GLib.timeout_add_seconds(UPDATE_INTERVAL_S, self._periodic_update_check)

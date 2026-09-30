@@ -94,6 +94,7 @@ function M.render(status, opts)
   local managed = (checkResult and checkResult.managed) or upd.managed
   local currentName = (status and status.name) or ""
   local ear = (status and status.ear) or {}
+  local audio = (status and status.audio) or {}
 
   local function toggleRow(key, title, subtitle, checked, onToggle)
     return ui.row({ key = key, gap = 10, align = "center" }, {
@@ -123,6 +124,8 @@ function M.render(status, opts)
                   onClick = function() saveName(status, refresh, rerender) end }),
     }),
 
+    toggleRow("s-route", "Audio a los AirPods solo al ponértelos", "Si están en la caja, sigue sonando por donde estaba",
+              audio.follow_ear ~= false, function(v) setOption(status, "audio_follow_ear", v, refresh, rerender) end),
     toggleRow("s-pause", "Pausar al quitarte un auricular", "También con uno en la caja y otro puesto",
               ear.pause ~= false, function(v) setOption(status, "ear_pause", v, refresh, rerender) end),
     toggleRow("s-resume", "Reanudar al volver a ponértelo", "Si vuelve a la oreja en menos de 2 min",

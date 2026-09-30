@@ -28,6 +28,7 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 - **Último estado conocido** con su antigüedad cuando no hay datos frescos ("visto hace 5 min"), nunca un dato viejo presentado como actual.
 - **Sin escaneo continuo:** usa el monitor pasivo de anuncios de BlueZ, que no interfiere con tus otros dispositivos Bluetooth.
 - `airpodsctl` para la terminal y una API D-Bus para integrarlo en otros widgets.
+- **El audio pasa a los AirPods solo cuando te los pones**: aunque se conecten al abrir la caja, el sonido sigue por donde estaba hasta que te pones uno, y vuelve al quitártelos.
 - **Pausa al quitarte un auricular** (cualquiera, también con el otro en la caja) y reanuda al volver a ponértelo, como en iOS.
 - **Ajustes (⚙) en el panel y el popup:** nombre del dispositivo y actualizaciones.
 - **Actualizaciones** con un comando o un clic, con aviso automático opcional (desactivado salvo que lo actives).
@@ -190,7 +191,7 @@ airpodsctl watch [--json]                  # muestra cada cambio en vivo
 airpodsctl keys fetch [MAC] | show         # claves de proximidad
 airpodsctl rename "Mis AirPods"            # nombre en este equipo ('' = el original)
 airpodsctl update [--check]                # busca una versión nueva e instala (--check: solo mira)
-airpodsctl config get | set <opción> true|false   # update_check, ear_pause, ear_resume
+airpodsctl config get | set <opción> true|false   # audio_follow_ear, ear_pause, ear_resume, update_check
 systemctl --user status airpodsd          # el servicio
 journalctl --user -u airpodsd -f          # sus logs (aperturas y cierres de la caja)
 ```
@@ -205,11 +206,22 @@ Con los AirPods conectados a este equipo, `airpodsd` pausa lo que esté sonando 
 - Se activa y desactiva en el ⚙ o con `airpodsctl config set ear_pause|ear_resume true|false`.
 - Si usas airpods-helper, desactiva su propia pausa para que no actúen los dos: en `~/.config/airpods-helper/config.toml`, sección `[ear_detection]`, pon `pause_media = false` y `resume_media = false`, y reinicia `airpods-daemon`.
 
+### El audio sigue a tus orejas
+
+Al abrir la caja, los AirPods se conectan solos al último dispositivo (es cosa de los AirPods, igual que con el iPhone) y Linux les manda el sonido aunque sigan en la caja. `airpodsd` lo corrige como iOS:
+
+- Si se conectan **sin ningún auricular puesto**, el sonido vuelve a la salida que estabas usando (altavoces, HDMI…).
+- Al **ponerte el primero**, el sonido pasa a los AirPods.
+- Al **quitarte el último** o guardarlo en la caja, vuelve a la salida anterior.
+
+Solo actúa en esos momentos, así que si eliges otra salida a mano, se respeta. Cambia la salida por defecto con `pactl` (paquete `libpulse`, que instala `pipewire-pulse`; sin él esta función se desactiva sola): las aplicaciones la siguen salvo que tengan una salida fijada (ver [conflictos de audio](#antes-de-instalar-conflictos-de-audio-conocidos)). Se desactiva en el ⚙ o con `airpodsctl config set audio_follow_ear false`.
+
 ### Ajustes (⚙)
 
 El panel de la barra y el popup tienen un botón ⚙. El popup no toma el teclado, así que su ⚙ abre el panel directamente en los ajustes. Desde ahí puedes:
 
 - **Cambiar el nombre** del dispositivo. Es el nombre en *este* equipo (BlueZ): lo ven el popup, el panel y tu gestor de Bluetooth. El nombre guardado en los propios AirPods, el que ve tu iPhone, no cambia.
+- **Activar o desactivar** que el audio pase a los AirPods solo al ponértelos.
 - **Activar o desactivar** la pausa y la reanudación automáticas.
 - **Activar o desactivar** la comprobación automática de actualizaciones.
 - **Buscar actualizaciones** ahora e instalar la nueva versión con un clic si la hay.

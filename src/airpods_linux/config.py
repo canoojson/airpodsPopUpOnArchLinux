@@ -11,8 +11,9 @@ DEFAULTS = {
     "notified_version": None,    # última versión de la que ya se avisó
     "ear_pause": True,           # pausar al quitarse un auricular
     "ear_resume": True,          # reanudar al volver a ponérselo
+    "audio_follow_ear": True,    # el audio pasa a los AirPods solo al ponérselos
 }
-BOOL_KEYS = {"update_check", "ear_pause", "ear_resume"}
+BOOL_KEYS = {"update_check", "ear_pause", "ear_resume", "audio_follow_ear"}
 
 
 def load(path: Path = CONFIG_PATH) -> dict:
