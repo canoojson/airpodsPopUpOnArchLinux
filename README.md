@@ -130,7 +130,7 @@ journalctl --user -u airpodsd -f          # sus logs (aperturas y cierres de la 
 
 Con los AirPods conectados a este equipo, `airpodsd` pausa lo que esté sonando (Spotify, el navegador, mpv… cualquier reproductor MPRIS) en cuanto te quitas **un** auricular. Vale igual si llevas los dos puestos que si llevas uno y el otro está en la caja.
 
-- **Reanuda** si te vuelves a poner ese mismo auricular en menos de 2 minutos. No reanuda si mientras tanto te quitas también el otro, ni reproduce nada que hubieras pausado tú.
+- **Reanuda** si te vuelves a poner ese mismo auricular en menos de 2 minutos, o si lo guardas en la caja mientras sigues con el otro puesto. No reanuda si mientras tanto te quitas también el otro, ni reproduce nada que hubieras pausado tú.
 - Si los AirPods están conectados a otro dispositivo (tu móvil), no toca la reproducción del equipo.
 - **Detección:** combina dos fuentes. Con [airpods-helper](https://github.com/superninjv/airpods-helper) en marcha es instantánea (sus avisos de oreja por AAP). Los anuncios BLE, que tardan unos segundos, cubren los casos en que airpods-helper no informa (por ejemplo, con un auricular en la caja) y el uso sin airpods-helper.
 - Se activa y desactiva en el ⚙ o con `airpodsctl config set ear_pause|ear_resume true|false`.

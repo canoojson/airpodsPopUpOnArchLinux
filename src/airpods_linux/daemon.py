@@ -308,8 +308,8 @@ class Daemon:
         except dbus.DBusException:
             log.info("detección en oreja: anuncios BLE (airpods-helper no está en marcha)")
 
-    def _ear_changed(self, left, right, source: str) -> None:
-        action = self.ear.update(source, left, right, self.connected(), time.time())
+    def _ear_changed(self, left, right, source: str, left_case=None, right_case=None) -> None:
+        action = self.ear.update(source, left, right, self.connected(), time.time(), left_case, right_case)
         if action == PAUSE and self.config.get("ear_pause", True):
             paused = self.media.pause_playing()
             log.info("auricular fuera de la oreja (%s): %s", source,
@@ -318,7 +318,7 @@ class Daemon:
                 self.media.forget()
         elif action == RESUME and self.config.get("ear_resume", True) and self.media.paused_by_us:
             resumed = self.media.resume()
-            log.info("auricular de vuelta en la oreja (%s): reanudado %s", source,
+            log.info("auricular de vuelta en la oreja o guardado en la caja (%s): reanudado %s", source,
                      ", ".join(p.rsplit('.', 1)[-1] for p in resumed) or "nada")
         elif action == RESUME:
             self.media.forget()
@@ -326,7 +326,8 @@ class Daemon:
     def _on_change(self, _store) -> None:
         # Los anuncios BLE siempre cuentan: con un auricular en la caja airpods-helper deja
         # de informar de la oreja, y sin airpods-helper son la única fuente.
-        self._ear_changed(self.store.value("left_in_ear"), self.store.value("right_in_ear"), "BLE")
+        self._ear_changed(self.store.value("left_in_ear"), self.store.value("right_in_ear"), "BLE",
+                          self.store.value("left_in_case"), self.store.value("right_in_case"))
         self.service.StateChanged(self.write_status())
         self.popup.update(self.popup_payload())
 

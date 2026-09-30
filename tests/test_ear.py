@@ -82,3 +82,28 @@ def test_late_ble_report_does_not_undo_helper():
     assert logic.update("ble", False, True, True, 4) is None      # BLE se entera tarde: ya estaba pausado
     assert logic.update("helper", True, True, True, 6) == RESUME
     assert logic.update("ble", True, True, True, 8) is None       # BLE confirma tarde: no reanuda dos veces
+
+
+# --- el auricular que te quitas va a la caja y sigues con el otro puesto ---
+
+def test_removed_bud_into_case_resumes_if_other_still_in_ear():
+    logic = EarPauseLogic()
+    assert logic.update("ble", True, True, True, 0, False, False) is None
+    assert logic.update("ble", False, True, True, 1, False, False) == PAUSE   # te quitas el izquierdo
+    assert logic.update("ble", False, True, True, 3, True, False) == RESUME   # lo metes en la caja
+
+
+def test_bud_into_case_after_removing_both_does_not_resume():
+    logic = EarPauseLogic()
+    logic.update("ble", True, True, True, 0, False, False)
+    assert logic.update("ble", False, True, True, 1, False, False) == PAUSE
+    assert logic.update("ble", False, False, True, 2, False, False) is None   # te quitas también el otro
+    assert logic.update("ble", False, False, True, 3, True, False) is None    # guardar uno no reanuda
+
+
+def test_single_bud_into_case_does_not_resume():
+    # con uno ya en la caja, te quitas el único puesto y lo guardas: no queda nada puesto
+    logic = EarPauseLogic()
+    logic.update("ble", False, True, True, 0, True, False)
+    assert logic.update("ble", False, False, True, 1, True, False) == PAUSE
+    assert logic.update("ble", False, False, True, 2, True, True) is None
