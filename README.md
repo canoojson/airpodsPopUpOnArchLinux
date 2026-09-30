@@ -132,7 +132,7 @@ Con los AirPods conectados a este equipo, `airpodsd` pausa lo que esté sonando 
 
 - **Reanuda** si te vuelves a poner ese mismo auricular en menos de 2 minutos. No reanuda si mientras tanto te quitas también el otro, ni reproduce nada que hubieras pausado tú.
 - Si los AirPods están conectados a otro dispositivo (tu móvil), no toca la reproducción del equipo.
-- **Detección:** con [airpods-helper](https://github.com/superninjv/airpods-helper) en marcha es instantánea, porque usa sus avisos de oreja por AAP. Sin él se usan los anuncios BLE, que tardan unos segundos.
+- **Detección:** combina dos fuentes. Con [airpods-helper](https://github.com/superninjv/airpods-helper) en marcha es instantánea (sus avisos de oreja por AAP). Los anuncios BLE, que tardan unos segundos, cubren los casos en que airpods-helper no informa (por ejemplo, con un auricular en la caja) y el uso sin airpods-helper.
 - Se activa y desactiva en el ⚙ o con `airpodsctl config set ear_pause|ear_resume true|false`.
 - Si usas airpods-helper, desactiva su propia pausa para que no actúen los dos: en `~/.config/airpods-helper/config.toml`, sección `[ear_detection]`, pon `pause_media = false` y `resume_media = false`, y reinicia `airpods-daemon`.
 

@@ -66,3 +66,23 @@ def test_stale_lid_value_is_ignored():
     # La tapa "cerrada" de la caja no debe reinterpretarse en una observación posterior sin tapa.
     events = run([(case, "08", "e4e4", 0), (pod, IN_EAR, 5)])
     assert events == [None, None]
+
+
+# Uno en la caja (cerrada) y otro en la oreja: el de la oreja anuncia "tapa abierta"
+# porque no está dentro; antes esto hacía parpadear el popup.
+ONE_IN_EAR_OTHER_IN_CLOSED_CASE = "071901272019aa98110004"   # emisor en oreja, fuera de la caja
+
+
+def test_bud_in_ear_does_not_report_lid():
+    a = parse_pod_advert(bytes.fromhex(ONE_IN_EAR_OTHER_IN_CLOSED_CASE) + bytes(16))
+    assert a.one_in_case and not a.this_in_case and a.lid_closed is None
+
+
+def test_no_popup_flapping_with_one_bud_in_ear():
+    events = run([
+        (case, "08", "e4ff", 0),                        # caja cerrada con un auricular
+        (pod, ONE_IN_EAR_OTHER_IN_CLOSED_CASE, 1),      # el de la oreja: no dice nada de la tapa
+        (case, "08", "e4ff", 2),
+        (pod, ONE_IN_EAR_OTHER_IN_CLOSED_CASE, 3),
+    ])
+    assert events == [None, None, None, None]

@@ -60,7 +60,7 @@ class PodAdvert:
     both_in_case: bool
     one_in_case: bool
     this_in_case: bool
-    lid_closed: bool | None  # solo fiable con algún auricular en la caja
+    lid_closed: bool | None  # solo fiable si ESTE auricular está en la caja
     lid_open_count: int
     color: int
     connection_state: int
@@ -95,7 +95,6 @@ def parse_pod_advert(data: bytes) -> PodAdvert | None:
     right_in_ear = bool(status & (0x02 if xor else 0x08))
     # Byte 8 bit 5: "este auricular en la caja" (observado; bit 6 de status no encaja).
     this_in_case = bool(lid & 0x20)
-    any_in_case = bool(status & 0x14)
     return PodAdvert(
         model=int.from_bytes(data[3:5], "little"),
         primary_left=primary_left,
@@ -107,7 +106,9 @@ def parse_pod_advert(data: bytes) -> PodAdvert | None:
         both_in_case=bool(status & 0x04),
         one_in_case=bool(status & 0x10),
         this_in_case=this_in_case,
-        lid_closed=bool(lid & 0x08) if any_in_case else None,
+        # Un auricular fuera de la caja (p. ej. en la oreja) sigue enviando un bit de tapa
+        # que no refleja la tapa real: solo vale el del auricular que está dentro.
+        lid_closed=bool(lid & 0x08) if this_in_case else None,
         lid_open_count=lid & 0x07,
         color=data[9],
         connection_state=data[10],

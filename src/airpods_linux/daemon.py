@@ -302,13 +302,14 @@ class Daemon:
             obj = self.session_bus.get_object(HELPER_BUS, HELPER_PATH, introspect=False)
             props = obj.GetAll(HELPER_BUS, dbus_interface="org.freedesktop.DBus.Properties")
             self._helper_ear = {"left": bool(props.get("EarLeft")), "right": bool(props.get("EarRight"))}
-            self.ear.update(self._helper_ear["left"], self._helper_ear["right"], self.connected(), time.time())
-            log.info("detección en oreja: airpods-helper (instantánea)")
+            self.ear.update("airpods-helper", self._helper_ear["left"], self._helper_ear["right"],
+                            self.connected(), time.time())
+            log.info("detección en oreja: airpods-helper (instantánea) + anuncios BLE")
         except dbus.DBusException:
             log.info("detección en oreja: anuncios BLE (airpods-helper no está en marcha)")
 
     def _ear_changed(self, left, right, source: str) -> None:
-        action = self.ear.update(left, right, self.connected(), time.time())
+        action = self.ear.update(source, left, right, self.connected(), time.time())
         if action == PAUSE and self.config.get("ear_pause", True):
             paused = self.media.pause_playing()
             log.info("auricular fuera de la oreja (%s): %s", source,
@@ -323,9 +324,9 @@ class Daemon:
             self.media.forget()
 
     def _on_change(self, _store) -> None:
-        # Sin airpods-helper, la oreja se sabe por los anuncios BLE (más lento).
-        if not self._helper_active():
-            self._ear_changed(self.store.value("left_in_ear"), self.store.value("right_in_ear"), "BLE")
+        # Los anuncios BLE siempre cuentan: con un auricular en la caja airpods-helper deja
+        # de informar de la oreja, y sin airpods-helper son la única fuente.
+        self._ear_changed(self.store.value("left_in_ear"), self.store.value("right_in_ear"), "BLE")
         self.service.StateChanged(self.write_status())
         self.popup.update(self.popup_payload())
 
