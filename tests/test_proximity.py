@@ -171,7 +171,7 @@ def test_case_flags(flags, closed, charger):
 # --- selección de los AirPods emparejados ---------------------------------------
 
 def test_select_airpods_ignores_other_apple_and_unpaired():
-    from airpods_linux.cli import select_airpods
+    from airpods_linux.bluez import select_airpods
     devices = [
         {"address": "A", "name": "iPhone", "paired": True, "modalias": "bluetooth:v004Cp1234d0001"},
         {"address": "B", "name": "Sony", "paired": True, "modalias": "usb:v054Cp0001"},
@@ -183,7 +183,7 @@ def test_select_airpods_ignores_other_apple_and_unpaired():
 
 
 def test_select_airpods_ambiguous():
-    from airpods_linux.cli import select_airpods
+    from airpods_linux.bluez import select_airpods
     devices = [
         {"address": "C", "name": "Pro 3", "paired": True, "modalias": "bluetooth:v004Cp2027d215C"},
         {"address": "E", "name": "Max", "paired": True, "modalias": "bluetooth:v004Cp201Fd0001"},

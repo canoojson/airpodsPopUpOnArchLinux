@@ -45,6 +45,10 @@ function render()
   elseif state.connected == false then
     footer = ui.button({ key = "footer", text = connecting and "Conectando…" or "Conectar",
                          variant = "primary", onClick = connect })
+  else
+    -- connected == nil: los AirPods no están emparejados con este equipo.
+    footer = ui.label({ key = "footer", text = "Empareja los AirPods con este equipo para conectarlos",
+                        fontSize = 12, color = "on_surface/0.6" })
   end
 
   panel.render(ui.column({ padding = 16, gap = 14, fill = "surface", radius = 22 }, {

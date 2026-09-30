@@ -19,6 +19,7 @@ import dbus.service
 from gi.repository import GLib
 
 from . import keys as keys_mod
+from .bluez import paired_devices, select_airpods
 from .events import CLOSED, OPENED, CaseEventDetector
 from .proximity import MODEL_NAMES
 from .state import STATE_PATH, StateStore
@@ -186,10 +187,22 @@ class Daemon:
         log.info("modo de escaneo: %s", "pasivo (AdvertisementMonitor)" if self.scanner.passive
                  else f"ventanas {args.on}/{args.off} s")
 
-    def connected(self) -> bool | None:
-        if not self.keys:
+    def airpods_address(self) -> str | None:
+        """MAC de los AirPods emparejados: la de las claves o, sin claves, la que encuentre BlueZ."""
+        if self.keys:
+            return self.keys.address
+        try:
+            chosen, _ = select_airpods(paired_devices())
+        except dbus.DBusException:
             return None
-        path = f"{self.scanner.adapter_path}/dev_{self.keys.address.replace(':', '_')}"
+        return chosen["address"] if chosen else None
+
+    def connected(self, address: str | None = None) -> bool | None:
+        """True/False si los AirPods están emparejados con este equipo; None si no lo están."""
+        address = address or self.airpods_address()
+        if not address:
+            return None
+        path = f"{self.scanner.adapter_path}/dev_{address.replace(':', '_')}"
         try:
             return bool(self.system_bus.get_object("org.bluez", path).Get(
                 "org.bluez.Device1", "Connected", dbus_interface="org.freedesktop.DBus.Properties"))
@@ -198,12 +211,14 @@ class Daemon:
 
     def state(self) -> dict:
         v = self.store.value
+        address = self.airpods_address()
         return {
             "now": time.time(),
             "keys": self.keys is not None,
             "model_name": MODEL_NAMES.get(v("model"), "AirPods"),
-            "address": self.keys.address if self.keys else None,
-            "connected": self.connected(),
+            "address": address,
+            # None = los AirPods no están emparejados con este equipo (no se pueden conectar)
+            "connected": self.connected(address),
             **self.store.to_dict(),
         }
 

@@ -171,6 +171,9 @@ render = function()
   if status.connected == false then
     table.insert(children, ui.button({ key = "connect", text = connecting and "Conectando…" or "Conectar a este equipo",
                                        variant = "primary", onClick = connect }))
+  elseif status.connected == nil then
+    table.insert(children, ui.label({ key = "connect", text = "Empareja los AirPods con este equipo para conectarlos",
+                                      fontSize = 12, color = "on_surface/0.6" }))
   end
   ancSection(children)
 
