@@ -1,6 +1,6 @@
 [project]
 name = "airpods-linux"
-version = "0.1.0"
+version = "0.1.1"
 description = "Batería de AirPods en Linux (también con la caja cerrada) y popup al abrir la caja"
 readme = "README.md"
 license = "GPL-3.0-or-later"
