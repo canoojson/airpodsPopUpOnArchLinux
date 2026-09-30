@@ -229,18 +229,42 @@ fi
 if [ "$WITH_NOCTALIA" = 1 ] && command -v noctalia >/dev/null; then
   step "Plugin de Noctalia ($PLUGIN_ID)"
   dest="$NOCTALIA_PLUGINS/airpods"
+  old_ids=()
   if [ -L "$dest" ] && [ "$(readlink -f "$dest")" != "$(readlink -f "$DATA_DIR/src/integrations/noctalia/airpods")" ]; then
     warn "$dest ya apunta a $(readlink "$dest") (instalación de desarrollo); no lo toco"
   else
+    # Las copias van fuera de $NOCTALIA_PLUGINS: Noctalia carga cualquier carpeta de ahí
+    # con plugin.toml, así que una copia dentro seguiría activa y ocupando la barra.
+    OLD_PLUGINS="$DATA_DIR/old-plugins"
+    for old in "$NOCTALIA_PLUGINS"/airpods.backup-*; do
+      [ -d "$old" ] || continue
+      mkdir -p "$OLD_PLUGINS" && mv "$old" "$OLD_PLUGINS/"
+      warn "copia antigua $old movida a $OLD_PLUGINS"
+      old_ids+=("$(sed -n 's/^id = "\(.*\)"$/\1/p' "$OLD_PLUGINS/$(basename "$old")/plugin.toml" 2>/dev/null | head -1)")
+    done
     if [ -e "$dest" ] && ! grep -q "^id = \"$PLUGIN_ID\"" "$dest/plugin.toml" 2>/dev/null; then
-      mv "$dest" "$dest.backup-$(date +%s)"
-      warn "había otro plugin en $dest; movido a $dest.backup-*"
+      old_ids+=("$(sed -n 's/^id = "\(.*\)"$/\1/p' "$dest/plugin.toml" 2>/dev/null | head -1)")
+      mkdir -p "$OLD_PLUGINS"
+      mv "$dest" "$OLD_PLUGINS/airpods.backup-$(date +%s)"
+      warn "había otro plugin en $dest; movido a $OLD_PLUGINS"
     fi
     mkdir -p "$NOCTALIA_PLUGINS"
     rm -rf "$dest"
     cp -r "$DATA_DIR/src/integrations/noctalia/airpods" "$dest"
     ok "copiado en $dest"
   fi
+  # El widget de la barra guarda el id del plugin: si apuntaba al antiguo, se pasa al nuevo.
+  NOCTALIA_SETTINGS="${XDG_STATE_HOME:-$HOME/.local/state}/noctalia/settings.toml"
+  for old_id in "${old_ids[@]}"; do
+    [ -n "$old_id" ] && [ "$old_id" != "$PLUGIN_ID" ] || continue
+    noctalia msg plugins disable "$old_id" >/dev/null 2>&1 || true
+    if grep -q "^type = \"$old_id:airpods\"" "$NOCTALIA_SETTINGS" 2>/dev/null; then
+      cp "$NOCTALIA_SETTINGS" "$NOCTALIA_SETTINGS.bak-airpods"
+      sed -i "s|^type = \"$old_id:airpods\"\$|type = \"$PLUGIN_ID:airpods\"|" "$NOCTALIA_SETTINGS"
+      noctalia msg config-reload >/dev/null 2>&1 || true
+      ok "widget de la barra cambiado de $old_id a $PLUGIN_ID"
+    fi
+  done
   if noctalia msg plugins enable "$PLUGIN_ID" >/dev/null 2>&1; then
     ok "activado. Añade el widget 'AirPods' a tu barra desde Ajustes → Barra"
   else
