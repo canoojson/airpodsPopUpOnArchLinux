@@ -261,6 +261,112 @@ if [ "$UPDATE" = 1 ]; then
   exit 0
 fi
 
+# ---------------------------------------------------------------------------
+# Conflictos de audio conocidos (ver "Antes de instalar" en el README).
+AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+EE_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc"
+
+PW_RULE="${XDG_CONFIG_HOME:-$HOME/.config}/pipewire/client.conf.d/50-airpods-linux-wallpaperengine.conf"
+
+check_wallpaperengine() {
+  local found=""
+  command -v linux-wallpaperengine >/dev/null && found=1
+  [ -x /opt/linux-wallpaperengine/linux-wallpaperengine ] && found=1
+  pgrep -f 'linux-wallpaperengine( |$)' >/dev/null 2>&1 && found=1
+  grep -q -i -l 'wallpaper-\?engine' "$AUTOSTART_DIR"/*.desktop 2>/dev/null && found=1
+  [ -n "$found" ] || return 0
+  if [ -f "$PW_RULE" ]; then
+    ok "Linux Wallpaper Engine: su audio ya está desconectado de las salidas"; return 0
+  fi
+
+  warn "Linux Wallpaper Engine detectado"
+  cat <<'EOF'
+    El fondo animado abre una salida de audio aunque esté en silencio. Si se congela
+    (p. ej. un script que lo pausa con SIGSTOP cuando las ventanas lo tapan), al
+    desconectar y reconectar los AirPods PipeWire se queda esperándolo y el audio de
+    TODO se atasca: el vídeo del navegador se queda "cargando" hasta que el fondo vuelve.
+    Solución: una regla de PipeWire para que el audio del fondo no se conecte a ninguna
+    salida (no afecta a nada más y no la deshace la app del fondo al actualizarse).
+EOF
+  if ask "¿Añado esa regla? ($PW_RULE)"; then
+    mkdir -p "$(dirname "$PW_RULE")"
+    cat > "$PW_RULE" <<'EOF'
+# airpods-linux: el fondo animado no se conecta a ninguna salida de audio.
+# Si se congela (p. ej. un script que lo pausa con SIGSTOP), no bloquea las demás
+# aplicaciones al cambiar de dispositivo (conectar/desconectar los AirPods).
+# Bórralo para deshacerlo.
+stream.rules = [
+    {
+        matches = [ { application.name = "linux-wallpaperengine" } ]
+        actions = { update-props = { node.autoconnect = false } }
+    }
+]
+EOF
+    ok "regla creada; se aplica la próxima vez que se abra el fondo (reinícialo o reinicia la sesión)"
+  else
+    echo "    Si más adelante quieres aplicarla, está explicada en el README (\"Antes de instalar\")."
+  fi
+}
+
+check_easyeffects() {
+  command -v easyeffects >/dev/null || return 0
+  # ¿Ya está desactivado? (la opción vive en la sección [EffectsPipelines])
+  if python3 - "$EE_CONF" <<'PY'
+import configparser, sys
+c = configparser.ConfigParser(strict=False, interpolation=None)
+c.optionxform = str
+try:
+    c.read(sys.argv[1])
+    sys.exit(0 if c.get("EffectsPipelines", "processAllOutputs", fallback="true") == "false" else 1)
+except configparser.Error:
+    sys.exit(1)
+PY
+  then
+    return 0
+  fi
+  warn "EasyEffects procesa todas las salidas de audio"
+  cat <<'EOF'
+    Con "Procesar todas las salidas" activo, EasyEffects captura el audio de cada
+    aplicación y lo fija a su salida virtual: al conectar los AirPods, el sonido puede
+    no pasar a ellos hasta que cambias la salida a mano. Si solo usas EasyEffects para
+    el micrófono, desactívalo (los efectos del micrófono no cambian).
+EOF
+  if pgrep -x easyeffects >/dev/null; then
+    echo "    EasyEffects está abierto y sobrescribiría el cambio: desactívalo en su ventana,"
+    echo "    Preferencias → \"Procesar todas las salidas\"."
+    return 0
+  fi
+  if ask "¿Lo desactivo en la configuración de EasyEffects? (se guarda copia .bak)"; then
+    [ -f "$EE_CONF" ] && cp "$EE_CONF" "$EE_CONF.bak-airpods"
+    mkdir -p "$(dirname "$EE_CONF")"
+    python3 - "$EE_CONF" <<'PY'
+import re, sys
+p = sys.argv[1]
+try:
+    s = open(p).read()
+except FileNotFoundError:
+    s = ""
+m = re.search(r'^\[EffectsPipelines\]\n', s, re.M)
+if m:
+    end = re.search(r'^\[', s[m.end():], re.M)
+    body = s[m.end():m.end() + (end.start() if end else len(s))]
+    body2 = re.sub(r'^processAllOutputs=.*\n?', '', body, flags=re.M)
+    s = s[:m.end()] + 'processAllOutputs=false\n' + body2 + s[m.end() + len(body):]
+else:
+    s = '[EffectsPipelines]\nprocessAllOutputs=false\n\n' + s
+open(p, 'w').write(s)
+PY
+    ok "EasyEffects ya no procesará las salidas"
+  fi
+}
+
+if [ "$UPDATE" = 0 ]; then
+  step "Conflictos de audio conocidos"
+  check_wallpaperengine
+  check_easyeffects
+  ok "revisión terminada"
+fi
+
 step "Actualizaciones"
 echo "  Puedes actualizar cuando quieras con:  airpodsctl update  (o desde el ⚙ del panel de Noctalia)."
 echo "  Opcionalmente, airpodsd puede consultar GitHub una vez al día y avisarte si hay versión nueva."

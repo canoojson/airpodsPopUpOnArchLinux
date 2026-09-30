@@ -2,7 +2,23 @@
 
 Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **popup estilo iOS** al abrir la caja con los auriculares dentro.
 
-> **English:** Linux daemon + CLI that reads AirPods battery (left/right/case, 1 % precision, even with the lid closed) from Apple's BLE advertisements, and shows an iOS-like popup when you open the case. Works with any desktop (notification fallback); first-class integration for the Noctalia shell. Install: `curl -fsSL https://raw.githubusercontent.com/canoojson/airpodsPopUpOnArchLinux/main/install.sh | bash`
+> **English:** ⚠️ Read the *known audio conflicts* warning below before installing (Linux Wallpaper Engine, EasyEffects, airpods-helper). Linux daemon + CLI that reads AirPods battery (left/right/case, 1 % precision, even with the lid closed) from Apple's BLE advertisements, and shows an iOS-like popup when you open the case. Works with any desktop (notification fallback); first-class integration for the Noctalia shell. Install: `curl -fsSL https://raw.githubusercontent.com/canoojson/airpodsPopUpOnArchLinux/main/install.sh | bash`
+
+> [!WARNING]
+> ### ⚠️ LEE ESTO ANTES DE INSTALAR: conflictos de audio conocidos
+>
+> Hay programas de escritorio que, al **conectar o desconectar los AirPods**, pueden hacer que **el audio de todo el sistema se atasque** (el vídeo del navegador se queda "cargando", sin sonido) o que **el sonido no pase a los AirPods** hasta que cambias la salida a mano. **No son fallos de este proyecto, pero te afectarán igual**, así que antes de pensar que esto no funciona, revisa si usas alguno:
+>
+> | Si usas… | Qué pasa | Arreglo |
+> |---|---|---|
+> | 🖼️ **Linux Wallpaper Engine** (fondo animado), sobre todo con un script que lo pausa al taparlo | Aunque esté en silencio abre una salida de audio; si se congela, PipeWire lo espera al reconectar los AirPods y **se atasca todo el audio** | Regla de PipeWire que lo desconecta del audio ([detalles](#antes-de-instalar-conflictos-de-audio-conocidos)) |
+> | 🎛️ **EasyEffects** con "Procesar todas las salidas" | Captura el audio de cada app y lo fija a su salida: **el sonido no pasa solo a los AirPods** | Desactivar esa opción (los efectos del micrófono no cambian) |
+> | 🎧 **[airpods-helper](https://github.com/superninjv/airpods-helper)** | Pausa y reanuda la música por su cuenta, a la vez que este proyecto | `pause_media = false` y `resume_media = false` en su configuración |
+>
+> **El instalador detecta los dos primeros y te pregunta si quieres que los corrija.** Todos se explican paso a paso en [Antes de instalar](#antes-de-instalar-conflictos-de-audio-conocidos).
+
+> [!NOTE]
+> Solo se ha probado a fondo con **AirPods Pro 3** en **Arch Linux + Hyprland + Noctalia**. Si algo falla en tu equipo, abre un *issue* con la salida de `airpodsctl status --json` y `journalctl --user -u airpodsd -n 50`.
 
 ## Qué hace
 
@@ -63,6 +79,58 @@ La dependencia de Python restante (`cryptography`) se instala sola en un entorno
 - **Hyprland**: animación de deslizamiento del popup (ver abajo).
 - **[airpods-helper](https://github.com/superninjv/airpods-helper)**: si está instalado, el panel de Noctalia muestra también el selector de modo de escucha (cancelación de ruido, adaptativo, ambiente).
 
+## Antes de instalar: conflictos de audio conocidos
+
+Estos problemas los provocan otros programas al cambiar de dispositivo de audio. Aparecen justo al usar AirPods (que se conectan y desconectan a menudo), así que conviene resolverlos. El instalador comprueba los dos primeros y, si los encuentra, **te explica el problema y te pregunta** si quieres que los corrija (siempre con copia de seguridad o en un fichero aparte fácil de borrar).
+
+### 🖼️ Linux Wallpaper Engine: el audio se atasca al reconectar los AirPods
+
+**Síntoma:** al desconectar y reconectar los AirPods, el vídeo del navegador sigue unos segundos **sin sonido** y se queda **"cargando"**. Se arregla solo al cambiar de ventana, mover una ventana de monitor, cerrar otra aplicación o reiniciar el navegador.
+
+**Causa:** `linux-wallpaperengine` abre una salida de audio **aunque esté en silencio** (`--volume 0` y `--silent` no la cierran). Si el fondo está congelado, por ejemplo por un script que lo pausa con `SIGSTOP` cuando las ventanas lo tapan, al crearse la salida nueva de los AirPods PipeWire espera a ese cliente congelado y **todo el audio de esa salida se queda parado** hasta que el fondo vuelve a moverse.
+
+**Arreglo** (es lo que hace el instalador): una regla de PipeWire que impide que el audio del fondo se conecte a ninguna salida. No afecta a otras aplicaciones y la app del fondo no la deshace al actualizarse o reescribir su lanzador.
+
+```sh
+mkdir -p ~/.config/pipewire/client.conf.d
+cat > ~/.config/pipewire/client.conf.d/50-airpods-linux-wallpaperengine.conf <<'EOF'
+stream.rules = [
+    {
+        matches = [ { application.name = "linux-wallpaperengine" } ]
+        actions = { update-props = { node.autoconnect = false } }
+    }
+]
+EOF
+```
+
+Reinicia el fondo (o la sesión) para que se aplique. **Deshacer:** borra ese fichero. Si usas un fondo que reacciona a la música, perderá esa función.
+
+### 🎛️ EasyEffects: el sonido no pasa solo a los AirPods
+
+**Síntoma:** conectas los AirPods y el navegador sigue sonando por la salida anterior hasta que cambias la salida a mano.
+
+**Causa:** con **"Procesar todas las salidas"** activado, EasyEffects captura el audio de cada aplicación y lo fija a su salida virtual.
+
+**Arreglo:** en EasyEffects, *Preferencias → "Procesar todas las salidas"* → desactivado. Si solo usas EasyEffects para el micrófono, sus efectos siguen igual. El instalador lo hace por ti si EasyEffects está cerrado (en su configuración es `processAllOutputs=false` en la sección `[EffectsPipelines]`); si está abierto, te pide que lo cambies en su ventana, porque lo sobrescribiría.
+
+Relacionado: si una aplicación sigue "pegada" a una salida concreta, que WirePlumber deje de recordarla hace que todas sigan a la salida por defecto:
+
+```sh
+wpctl settings --save node.stream.restore-target false     # deshacer: wpctl settings --delete node.stream.restore-target
+```
+
+### 🎧 airpods-helper: pausas duplicadas
+
+Si usas [airpods-helper](https://github.com/superninjv/airpods-helper), tiene su propia pausa al quitarte los auriculares (solo con los dos). Para que no actúen los dos programas a la vez, en `~/.config/airpods-helper/config.toml`:
+
+```toml
+[ear_detection]
+pause_media = false
+resume_media = false
+```
+
+y reinicia `airpods-daemon`. El resto de airpods-helper (modo de escucha, ecualizador) sigue funcionando y `airpodsd` usa sus avisos de oreja para pausar al instante.
+
 ## Instalación
 
 **En una línea** (descarga la última release, o `main` si aún no hay):
@@ -86,7 +154,8 @@ El instalador trabaja en tu usuario: no necesita `sudo`, salvo si aceptas activa
 3. Te ofrece activar `Experimental = true` en BlueZ.
 4. Instala y arranca el servicio de usuario `airpodsd`.
 5. Si tienes Noctalia, instala y activa el plugin `canoojson/airpods`.
-6. **Te pregunta si quieres activar la comprobación automática de actualizaciones** (ver [Actualizaciones](#actualizaciones)). Si respondes que no, o si no hay terminal interactiva, queda desactivada.
+6. **Busca conflictos de audio conocidos** (Linux Wallpaper Engine, EasyEffects) y, si los encuentra, te explica el problema y te pregunta si quieres que los corrija. Ver [Antes de instalar](#antes-de-instalar-conflictos-de-audio-conocidos).
+7. **Te pregunta si quieres activar la comprobación automática de actualizaciones** (ver [Actualizaciones](#actualizaciones)). Si respondes que no, o si no hay terminal interactiva, queda desactivada.
 
 Opciones: `--no-service`, `--no-noctalia`, `--no-bluez`, `--auto-update y|n` (responde de antemano a la pregunta de actualizaciones), `--ref <rama|etiqueta>`, `--uninstall [--purge]`.
 
@@ -198,6 +267,8 @@ Los AirPods anuncian por Bluetooth LE un mensaje *Proximity Pairing* de Apple co
 | La batería de la caja sale `--` | Con la caja abierta y vacía en el cargador, la caja deja de anunciarse: ciérrala o mete un auricular |
 | No aparece el popup | Comprueba `journalctl --user -u airpodsd` ("caja abierta…") y que el plugin esté activo: `noctalia msg plugins list` |
 | El widget dice "airpodsd no está en ejecución" | `systemctl --user enable --now airpodsd` |
+| Al conectar o desconectar los AirPods el vídeo se queda "cargando" sin sonido | Casi seguro es Linux Wallpaper Engine u otra app congelada con audio abierto: ver [Antes de instalar](#antes-de-instalar-conflictos-de-audio-conocidos) |
+| Al conectar los AirPods el sonido sigue saliendo por otro sitio | EasyEffects o WirePlumber fijando la salida: ver [Antes de instalar](#antes-de-instalar-conflictos-de-audio-conocidos) |
 
 ## Desinstalar
 
