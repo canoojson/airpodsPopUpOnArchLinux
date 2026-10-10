@@ -9,6 +9,7 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
+from .fsutil import atomic_write_text
 from .proximity import Battery, CaseAdvert, PodAdvert, PodSecret
 
 SRC_ENC = "ble-enc"      # anuncio largo descifrado (1 %)
@@ -70,11 +71,7 @@ class StateStore:
         if not self.path:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        tmp = self.path.with_suffix(".tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as fh:
-            json.dump(self.to_dict(), fh, indent=2)
-        os.replace(tmp, self.path)
+        atomic_write_text(self.path, json.dumps(self.to_dict(), indent=2))
 
 
 def apply_pod(store: StateStore, adv: PodAdvert, secret: PodSecret | None,

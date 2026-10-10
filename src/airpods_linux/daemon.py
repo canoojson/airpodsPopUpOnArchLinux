@@ -23,6 +23,7 @@ from gi.repository import GLib
 from . import keys as keys_mod
 from . import config as config_mod
 from . import update as update_mod
+from .fsutil import atomic_write_text
 from .audio import AudioRouter, PactlSinks, airpods_sink_prefix
 from .bluez import get_alias, paired_devices, select_airpods
 from .ear import PAUSE, RESUME, EarPauseLogic
@@ -279,9 +280,7 @@ class Daemon:
         path = runtime_status_path()
         try:
             path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-            tmp = path.with_suffix(".tmp")
-            tmp.write_text(data)
-            os.replace(tmp, path)
+            atomic_write_text(path, data, mode=0o644)
         except OSError as e:
             log.warning("no se pudo escribir %s: %s", path, e)
         return data

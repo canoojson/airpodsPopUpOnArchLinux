@@ -1,8 +1,8 @@
 """Preferencias del usuario en ~/.config/airpods-linux/config.json."""
 import json
-import os
 from pathlib import Path
 
+from .fsutil import atomic_write_text
 from .keys import config_dir
 
 CONFIG_PATH = config_dir() / "config.json"
@@ -31,11 +31,7 @@ def exists(path: Path = CONFIG_PATH) -> bool:
 
 def save(cfg: dict, path: Path = CONFIG_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    tmp = path.with_suffix(".tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as fh:
-        json.dump(cfg, fh, indent=2)
-    os.replace(tmp, path)
+    atomic_write_text(path, json.dumps(cfg, indent=2))
 
 
 def parse_value(key: str, raw: str):
