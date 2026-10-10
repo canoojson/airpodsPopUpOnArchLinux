@@ -18,7 +18,7 @@ from pathlib import Path
 import dbus
 import dbus.mainloop.glib
 import dbus.service
-from gi.repository import GLib
+from gi.repository import Gio, GLib
 
 from . import keys as keys_mod
 from . import config as config_mod
@@ -135,10 +135,12 @@ def spawn(argv: list[str]) -> None:
     env = graphical_env()
     if not env.get("WAYLAND_DISPLAY"):
         log.warning("sin sesión Wayland: no se puede mostrar el popup")
+    # GLib.spawn_async con STDOUT_TO_DEV_NULL lanza AssertionError desde GLib 2.90 + PyGObject 3.58.
+    # Gio.SubprocessLauncher hace lo mismo y además recoge el proceso hijo al terminar.
+    launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE)
+    launcher.set_environ([f"{k}={v}" for k, v in env.items()])
     try:
-        GLib.spawn_async(argv, envp=[f"{k}={v}" for k, v in env.items()],
-                         flags=GLib.SpawnFlags.SEARCH_PATH | GLib.SpawnFlags.STDOUT_TO_DEV_NULL
-                         | GLib.SpawnFlags.STDERR_TO_DEV_NULL)
+        launcher.spawnv(argv)
     except GLib.Error as e:
         log.warning("no se pudo lanzar %s: %s", argv[0], e.message)
 
