@@ -89,9 +89,9 @@ end
 function M.render(status, opts)
   local common, refresh, rerender = opts.common, opts.refresh, opts.rerender
   local upd = (status and status.update) or {}
-  local available = (checkResult and checkResult.available) or upd.available
-  local latest = (checkResult and checkResult.latest) or upd.latest
-  local managed = (checkResult and checkResult.managed) or upd.managed
+  -- Una búsqueda manual manda sobre el estado del daemon, que puede estar desfasado.
+  local src = checkResult or upd
+  local available, latest, managed = src.available, src.latest, src.managed
   local currentName = (status and status.name) or ""
   local ear = (status and status.ear) or {}
   local audio = (status and status.audio) or {}
