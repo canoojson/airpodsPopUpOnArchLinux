@@ -77,6 +77,12 @@ function M.where(status, side)
   return ""
 end
 
+-- Hueco fijo y transparente. Ni ui.box (lleva relleno por defecto) ni ui.spacer (es
+-- elástico y se come el espacio libre) sirven para esto: una fila vacía sí.
+function M.gap(key, width, height)
+  return ui.row({ key = key, width = width or 1, height = height or 1 }, {})
+end
+
 -- Contenido de un scroll con un hueco a la derecha, para que no quede pegado a la
 -- barra de desplazamiento ni al borde del panel (solo existe paddingH, a ambos lados).
 M.SCROLL_GUTTER = 12
@@ -84,7 +90,7 @@ M.SCROLL_GUTTER = 12
 function M.scrollBody(key, gap, children)
   return ui.row({ key = key .. "-wrap", gap = 0 }, {
     ui.column({ key = key .. "-body", gap = gap, flexGrow = 1 }, children),
-    ui.box({ key = key .. "-gutter", width = M.SCROLL_GUTTER, height = 1 }),
+    M.gap(key .. "-gutter", M.SCROLL_GUTTER),
   })
 end
 
@@ -162,10 +168,10 @@ end
 -- Fila de lista: icono opcional en un círculo, título y subtítulo, y un control a la derecha.
 function M.listRow(key, opts)
   local children = {}
-  if opts.glyph then
+  if opts.glyph or opts.icon then
     table.insert(children, ui.row({ key = key .. "-ic", width = 30, height = 30, radius = 15, align = "center",
                                     justify = "center", fill = opts.glyphFill or "primary/0.15" }, {
-      ui.glyph({ name = opts.glyph, size = 17, color = opts.glyphColor or "primary" }),
+      opts.icon or ui.glyph({ name = opts.glyph, size = 17, color = opts.glyphColor or "primary" }),
     }))
   end
   local texts = { ui.label({ key = key .. "-title", text = opts.title, fontSize = 14,
@@ -178,6 +184,39 @@ function M.listRow(key, opts)
   if opts.trailing then table.insert(children, opts.trailing) end
   return ui.row({ key = key, gap = 12, align = "center", paddingH = 14, paddingV = 11, onClick = opts.onClick },
                 children)
+end
+
+-- Auricular dibujado con elementos de Noctalia (sigue el color del tema): cabeza redonda
+-- y tallo hacia abajo, en el lado interior. side = "left" | "right".
+function M.earbud(key, side, size, color)
+  local head = size
+  local stemW, stemH = math.floor(size * 0.34 + 0.5), math.floor(size * 1.15 + 0.5)
+  local inset = math.floor(size * 0.12 + 0.5)    -- el tallo no sale del borde de la cabeza
+  color = color or "on_surface"
+  local stemRow = { ui.box({ key = key .. "-stem", width = stemW, height = stemH, radius = stemW / 2, fill = color }) }
+  local spacer = M.gap(key .. "-sp", head - stemW - inset)
+  local edge = M.gap(key .. "-edge", inset)
+  if side == "left" then
+    stemRow = { spacer, stemRow[1], edge }   -- el tallo del izquierdo va a su derecha (hacia dentro)
+  else
+    stemRow = { edge, stemRow[1], spacer }
+  end
+  return ui.column({ key = key, gap = -math.floor(size * 0.18), align = "center", width = head }, {
+    ui.box({ key = key .. "-head", width = head, height = head, radius = head / 2, fill = color }),
+    ui.row({ key = key .. "-stemrow", gap = 0, width = head }, stemRow),
+  })
+end
+
+-- Caja de carga con el mismo estilo: silueta redondeada, línea de la tapa y LED.
+function M.caseShape(key, w, h, color)
+  local lid = math.floor(h * 0.3 + 0.5)
+  return ui.column({ key = key, width = w, height = h, radius = math.floor(h * 0.32), fill = color or "on_surface",
+                     align = "center", gap = 0 }, {
+    M.gap(key .. "-lidspace", 1, lid),
+    ui.box({ key = key .. "-seam", width = w, height = 2, fill = "surface/0.35" }),
+    M.gap(key .. "-ledspace", 1, math.floor((h - lid - 2) * 0.42)),
+    ui.box({ key = key .. "-led", width = 6, height = 6, radius = 3, fill = "surface/0.3" }),
+  })
 end
 
 -- Botón ancho en forma de píldora (acción principal, como "Conectar" en iOS).

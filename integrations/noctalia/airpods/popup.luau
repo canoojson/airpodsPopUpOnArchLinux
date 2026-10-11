@@ -29,13 +29,14 @@ local function connect()
 end
 
 local IOS_BLUE = "#0A84FF"
-local ASSETS = noctalia.pluginDir() .. "/assets/"
 
 -- Una pieza (auricular o caja): ilustración, insignia I/D y batería debajo, como en iOS.
 local function part(key, image, w, h, battery, badge)
   local level = battery and battery.level
   local children = {
-    ui.image({ key = key .. "-img", path = ASSETS .. image, width = w, height = h }),
+    image == "pod-left" and common.earbud(key .. "-img", "left", 38)
+    or image == "pod-right" and common.earbud(key .. "-img", "right", 38)
+    or common.caseShape(key .. "-img", w, h),
   }
   -- Solo los auriculares llevan insignia. Las columnas se alinean por abajo, así que las
   -- baterías quedan a la misma altura sin necesidad de rellenar el hueco de la caja.
@@ -74,7 +75,7 @@ function render()
 
   panel.render(ui.column({ padding = 22, gap = 18, fill = "surface", radius = 36, align = "stretch" }, {
     ui.row({ key = "header", gap = 8, align = "center" }, {
-      ui.box({ key = "header-spacer", width = 30, height = 30 }),
+      common.gap("header-spacer", 30, 30),
       ui.label({ key = "title", text = state.name or state.model_name or "AirPods", fontSize = 18,
                  fontWeight = "bold", flexGrow = 1, textAlign = "center", maxLines = 1 }),
       ui.row({ key = "close", width = 30, height = 30, radius = 15, align = "center", justify = "center",
@@ -83,11 +84,11 @@ function render()
       }),
     }),
     ui.row({ key = "parts", gap = 4, align = "end", justify = "center" }, {
-      part("left", "pod-left.svg", 54, 94, common.field(state, "left"), "I"),
-      part("right", "pod-right.svg", 54, 94, common.field(state, "right"), "D"),
-      ui.box({ key = "parts-gap", width = 14, height = 1 }),
+      part("left", "pod-left", 54, 80, common.field(state, "left"), "I"),
+      part("right", "pod-right", 54, 80, common.field(state, "right"), "D"),
+      common.gap("parts-gap", 14),
       -- Paréntesis: common.field devuelve también la hora, que si no ocuparía `badge`.
-      part("case", "case.svg", 118, 94, (common.field(state, "case"))),
+      part("case", "case", 84, 62, (common.field(state, "case"))),
     }),
     footer,
   }))
