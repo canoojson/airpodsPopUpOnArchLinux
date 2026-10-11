@@ -337,6 +337,41 @@ EOF
   fi
 }
 
+WP_AAC_RULE="${XDG_CONFIG_HOME:-$HOME/.config}/wireplumber/wireplumber.conf.d/51-airpods-linux-aac.conf"
+
+check_aac_quality() {
+  command -v wireplumber >/dev/null || return 0
+  if [ -f "$WP_AAC_RULE" ]; then
+    ok "AirPods: AAC en calidad máxima constante (VBR)"; return 0
+  fi
+  warn "Calidad de audio de los AirPods (AAC)"
+  cat <<'EOF'
+    Por defecto PipeWire baja la calidad del audio AAC cuando el enlace Bluetooth
+    tiene un problema puntual (al reconectar, interferencias...) y puede no volver
+    a subirla: los AirPods suenan "a llamada" hasta desconectarlos. Una regla de
+    WirePlumber los pone en calidad máxima constante (VBR), como hace el iPhone.
+    Solo afecta a auriculares de Apple.
+EOF
+  if ask "¿Añado esa regla? ($WP_AAC_RULE)"; then
+    mkdir -p "$(dirname "$WP_AAC_RULE")"
+    cat > "$WP_AAC_RULE" <<'EOF'
+# airpods-linux: AAC de los AirPods (y demás auriculares de Apple) en VBR de máxima calidad.
+# Con el modo por defecto (CBR) PipeWire baja el bitrate cuando el enlace Bluetooth
+# tiene un problema puntual y puede no volver a subirlo: el audio suena "a llamada"
+# hasta reconectar. En VBR no baja la calidad (como el iPhone). Bórralo para deshacerlo.
+monitor.bluez.rules = [
+  {
+    matches = [ { device.name = "~bluez_card.*", device.vendor.id = "bluetooth:004c" } ]
+    actions = { update-props = { bluez5.a2dp.aac.bitratemode = 5 } }
+  }
+]
+EOF
+    ok "regla creada; se aplica tras: systemctl --user restart wireplumber (corta el audio un momento)"
+  else
+    echo "    Si más adelante quieres aplicarla, está explicada en el README (\"Antes de instalar\")."
+  fi
+}
+
 check_easyeffects() {
   command -v easyeffects >/dev/null || return 0
   # ¿Ya está desactivado? (la opción vive en la sección [EffectsPipelines])
@@ -393,6 +428,7 @@ if [ "$UPDATE" = 0 ]; then
   step "Conflictos de audio conocidos"
   check_wallpaperengine
   check_easyeffects
+  check_aac_quality
   ok "revisión terminada"
 fi
 

@@ -13,9 +13,10 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 > |---|---|---|
 > | 🖼️ **Linux Wallpaper Engine** (fondo animado), sobre todo con un script que lo pausa al taparlo | Aunque esté en silencio abre una salida de audio; si se congela, PipeWire lo espera al reconectar los AirPods y **se atasca todo el audio** | Regla de PipeWire que lo desconecta del audio ([detalles](#antes-de-instalar-conflictos-de-audio-conocidos)) |
 > | 🎛️ **EasyEffects** con "Procesar todas las salidas" | Captura el audio de cada app y lo fija a su salida: **el sonido no pasa solo a los AirPods** | Desactivar esa opción (los efectos del micrófono no cambian) |
+> | 🔈 **PipeWire** (todos) | El audio de los AirPods acaba sonando **"a llamada"** (calidad baja) hasta desconectarlos | Regla de WirePlumber: AAC en calidad máxima constante |
 > | 🎧 **[airpods-helper](https://github.com/superninjv/airpods-helper)** | Pausa y reanuda la música por su cuenta, a la vez que este proyecto | `pause_media = false` y `resume_media = false` en su configuración |
 >
-> **El instalador detecta los dos primeros y te pregunta si quieres que los corrija.** Todos se explican paso a paso en [Antes de instalar](#antes-de-instalar-conflictos-de-audio-conocidos).
+> **El instalador detecta los tres primeros y te pregunta si quieres que los corrija.** Todos se explican paso a paso en [Antes de instalar](#antes-de-instalar-conflictos-de-audio-conocidos).
 
 > [!NOTE]
 > Solo se ha probado a fondo con **AirPods Pro 3** en **Arch Linux + Hyprland + Noctalia**. Si algo falla en tu equipo, abre un *issue* con la salida de `airpodsctl status --json` y `journalctl --user -u airpodsd -n 50`.
@@ -108,6 +109,33 @@ EOF
 ```
 
 Reinicia el fondo (o la sesión) para que se aplique. **Deshacer:** borra ese fichero. Si usas un fondo que reacciona a la música, perderá esa función.
+
+### 🔈 PipeWire: los AirPods suenan "a llamada"
+
+**Síntoma:** el perfil sigue siendo de música (A2DP, AAC), pero de repente todo suena con calidad de llamada telefónica, y se arregla al desconectar y reconectar los AirPods.
+
+**Causa:** en su modo por defecto, el codificador AAC de PipeWire baja el bitrate cuando el enlace Bluetooth tiene un problema puntual (una reconexión, interferencias, los AirPods conectados también al iPhone...) y puede no volver a subirlo.
+
+**Arreglo** (es lo que hace el instalador): AAC en calidad máxima constante (VBR) para los auriculares de Apple, como hace el iPhone. Si el enlace va muy mal puede haber algún corte, en lugar de bajar la calidad.
+
+```sh
+mkdir -p ~/.config/wireplumber/wireplumber.conf.d
+cat > ~/.config/wireplumber/wireplumber.conf.d/51-airpods-linux-aac.conf <<'EOF'
+# airpods-linux: AAC de los AirPods (y demás auriculares de Apple) en VBR de máxima calidad.
+# Con el modo por defecto (CBR) PipeWire baja el bitrate cuando el enlace Bluetooth
+# tiene un problema puntual y puede no volver a subirlo: el audio suena "a llamada"
+# hasta reconectar. En VBR no baja la calidad (como el iPhone). Bórralo para deshacerlo.
+monitor.bluez.rules = [
+  {
+    matches = [ { device.name = "~bluez_card.*", device.vendor.id = "bluetooth:004c" } ]
+    actions = { update-props = { bluez5.a2dp.aac.bitratemode = 5 } }
+  }
+]
+EOF
+systemctl --user restart wireplumber
+```
+
+**Deshacer:** borra ese fichero y reinicia WirePlumber.
 
 ### 🎛️ EasyEffects: el sonido no pasa solo a los AirPods
 
