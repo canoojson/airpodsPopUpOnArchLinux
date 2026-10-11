@@ -257,11 +257,8 @@ local function historySection(children)
   }))
 end
 
--- icon: "left" | "right" (auricular de ese lado) o "case".
-local function batteryRow(key, icon, title, subtitle, battery, dim)
-  local node = (icon == "case") and common.caseShape(key .. "-shape", 18, 13, "primary")
-               or common.earbud(key .. "-shape", icon, 12, "primary")
-  return common.listRow(key, { icon = node, title = title, subtitle = subtitle,
+local function batteryRow(key, glyph, title, subtitle, battery, dim)
+  return common.listRow(key, { glyph = glyph, title = title, subtitle = subtitle,
                                trailing = common.batteryIcon(key .. "-bat", battery, { dim = dim }) })
 end
 
@@ -325,9 +322,9 @@ render = function()
 
   local children = {
     common.group("batteries", {
-      batteryRow("left", "left", "Izquierdo", common.where(status, "left"), common.field(status, "left"), stale),
-      batteryRow("right", "right", "Derecho", common.where(status, "right"), common.field(status, "right"), stale),
-      batteryRow("case", "case", "Caja", caseSub, common.field(status, "case"), stale),
+      batteryRow("left", "device-airpods", "Izquierdo", common.where(status, "left"), common.field(status, "left"), stale),
+      batteryRow("right", "device-airpods", "Derecho", common.where(status, "right"), common.field(status, "right"), stale),
+      batteryRow("case", "device-airpods-case", "Caja", caseSub, common.field(status, "case"), stale),
     }),
   }
 

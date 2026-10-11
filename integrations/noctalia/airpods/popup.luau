@@ -31,15 +31,10 @@ end
 local IOS_BLUE = "#0A84FF"
 
 -- Una pieza (auricular o caja): ilustración, insignia I/D y batería debajo, como en iOS.
-local function part(key, image, w, h, battery, badge)
+-- Batería de una pieza: icono de iOS encima del porcentaje.
+local function batteryStack(key, battery, badge)
   local level = battery and battery.level
-  local children = {
-    image == "pod-left" and common.earbud(key .. "-img", "left", 38)
-    or image == "pod-right" and common.earbud(key .. "-img", "right", 38)
-    or common.caseShape(key .. "-img", w, h),
-  }
-  -- Solo los auriculares llevan insignia. Las columnas se alinean por abajo, así que las
-  -- baterías quedan a la misma altura sin necesidad de rellenar el hueco de la caja.
+  local children = {}
   if badge then
     table.insert(children, ui.row({ key = key .. "-badge", width = 18, height = 18, radius = 9, align = "center",
                                     justify = "center", fill = "on_surface/0.12" }, {
@@ -49,7 +44,25 @@ local function part(key, image, w, h, battery, badge)
   table.insert(children, common.batteryIcon(key .. "-bat", battery, { showText = false, width = 30, height = 14 }))
   table.insert(children, ui.label({ key = key .. "-pct", text = level and (level .. " %") or "—", fontSize = 15,
                                     color = level and "on_surface" or common.SECONDARY }))
-  return ui.column({ key = key, gap = 8, align = "center", justify = "end", width = math.max(w, 64) }, children)
+  return ui.column({ key = key, gap = 8, align = "center", width = 64 }, children)
+end
+
+-- Auriculares: un solo icono (el tema no tiene uno por lado) con las dos baterías debajo.
+local function pods(left, right)
+  return ui.column({ key = "pods", gap = 12, align = "center" }, {
+    ui.glyph({ key = "pods-img", name = "device-airpods", size = 76, color = "on_surface" }),
+    ui.row({ key = "pods-bats", gap = 8, align = "end" }, {
+      batteryStack("left", left, "I"),
+      batteryStack("right", right, "D"),
+    }),
+  })
+end
+
+local function casePart(battery)
+  return ui.column({ key = "case", gap = 12, align = "center" }, {
+    ui.glyph({ key = "case-img", name = "device-airpods-case", size = 76, color = "on_surface" }),
+    batteryStack("case-b", battery),
+  })
 end
 
 function render()
@@ -83,12 +96,9 @@ function render()
         ui.glyph({ name = "x", size = 16, color = "on_surface/0.7" }),
       }),
     }),
-    ui.row({ key = "parts", gap = 4, align = "end", justify = "center" }, {
-      part("left", "pod-left", 54, 80, common.field(state, "left"), "I"),
-      part("right", "pod-right", 54, 80, common.field(state, "right"), "D"),
-      common.gap("parts-gap", 14),
-      -- Paréntesis: common.field devuelve también la hora, que si no ocuparía `badge`.
-      part("case", "case", 84, 62, (common.field(state, "case"))),
+    ui.row({ key = "parts", gap = 24, align = "end", justify = "center" }, {
+      pods((common.field(state, "left")), (common.field(state, "right"))),
+      casePart((common.field(state, "case"))),
     }),
     footer,
   }))

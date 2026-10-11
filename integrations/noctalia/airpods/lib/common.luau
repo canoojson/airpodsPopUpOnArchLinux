@@ -168,10 +168,10 @@ end
 -- Fila de lista: icono opcional en un círculo, título y subtítulo, y un control a la derecha.
 function M.listRow(key, opts)
   local children = {}
-  if opts.glyph or opts.icon then
+  if opts.glyph then
     table.insert(children, ui.row({ key = key .. "-ic", width = 30, height = 30, radius = 15, align = "center",
                                     justify = "center", fill = opts.glyphFill or "primary/0.15" }, {
-      opts.icon or ui.glyph({ name = opts.glyph, size = 17, color = opts.glyphColor or "primary" }),
+      ui.glyph({ name = opts.glyph, size = 17, color = opts.glyphColor or "primary" }),
     }))
   end
   local texts = { ui.label({ key = key .. "-title", text = opts.title, fontSize = 14,
@@ -184,39 +184,6 @@ function M.listRow(key, opts)
   if opts.trailing then table.insert(children, opts.trailing) end
   return ui.row({ key = key, gap = 12, align = "center", paddingH = 14, paddingV = 11, onClick = opts.onClick },
                 children)
-end
-
--- Auricular dibujado con elementos de Noctalia (sigue el color del tema): cabeza redonda
--- y tallo hacia abajo, en el lado interior. side = "left" | "right".
-function M.earbud(key, side, size, color)
-  local head = size
-  local stemW, stemH = math.floor(size * 0.34 + 0.5), math.floor(size * 1.15 + 0.5)
-  local inset = math.floor(size * 0.12 + 0.5)    -- el tallo no sale del borde de la cabeza
-  color = color or "on_surface"
-  local stemRow = { ui.box({ key = key .. "-stem", width = stemW, height = stemH, radius = stemW / 2, fill = color }) }
-  local spacer = M.gap(key .. "-sp", head - stemW - inset)
-  local edge = M.gap(key .. "-edge", inset)
-  if side == "left" then
-    stemRow = { spacer, stemRow[1], edge }   -- el tallo del izquierdo va a su derecha (hacia dentro)
-  else
-    stemRow = { edge, stemRow[1], spacer }
-  end
-  return ui.column({ key = key, gap = -math.floor(size * 0.18), align = "center", width = head }, {
-    ui.box({ key = key .. "-head", width = head, height = head, radius = head / 2, fill = color }),
-    ui.row({ key = key .. "-stemrow", gap = 0, width = head }, stemRow),
-  })
-end
-
--- Caja de carga con el mismo estilo: silueta redondeada, línea de la tapa y LED.
-function M.caseShape(key, w, h, color)
-  local lid = math.floor(h * 0.3 + 0.5)
-  return ui.column({ key = key, width = w, height = h, radius = math.floor(h * 0.32), fill = color or "on_surface",
-                     align = "center", gap = 0 }, {
-    M.gap(key .. "-lidspace", 1, lid),
-    ui.box({ key = key .. "-seam", width = w, height = 2, fill = "surface/0.35" }),
-    M.gap(key .. "-ledspace", 1, math.floor((h - lid - 2) * 0.42)),
-    ui.box({ key = key .. "-led", width = 6, height = 6, radius = 3, fill = "surface/0.3" }),
-  })
 end
 
 -- Botón ancho en forma de píldora (acción principal, como "Conectar" en iOS).
