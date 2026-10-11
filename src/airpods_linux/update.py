@@ -62,6 +62,21 @@ def managed_install() -> bool:
         return False
 
 
+def install_kind() -> str:
+    """'script' (install.sh), 'package' (paquete del sistema, p. ej. AUR) o 'dev'."""
+    if managed_install():
+        return "script"
+    if Path(__file__).resolve().is_relative_to("/usr/lib"):
+        return "package"
+    return "dev"
+
+
+UPDATE_HINTS = {
+    "package": "Instalado como paquete del sistema: actualiza con tu gestor de paquetes (p. ej. yay -Syu).",
+    "dev": "Esta es una instalación de desarrollo: actualiza con git pull.",
+}
+
+
 def run_installer() -> int:
     """Descarga el install.sh de la última release y lo ejecuta en modo actualización."""
     with tempfile.TemporaryDirectory() as tmp:

@@ -27,6 +27,12 @@ def state_dir() -> Path:
 STATE_PATH = state_dir() / "state.json"
 
 
+def runtime_status_path() -> Path:
+    """Estado en vivo de airpodsd para widgets que no hablan D-Bus (Noctalia, airpodsctl)."""
+    base = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    return Path(base) / "airpods-linux" / "status.json"
+
+
 class StateStore:
     def __init__(self, path: Path | None = STATE_PATH):
         self.path = path
@@ -75,15 +81,21 @@ class StateStore:
 
 
 def apply_pod(store: StateStore, adv: PodAdvert, secret: PodSecret | None,
-              rssi: int | None = None, ts: float | None = None) -> bool:
-    """Vuelca un anuncio largo en el estado. Con `secret` usa la batería al 1 %."""
+              rssi: int | None = None, ts: float | None = None, live: bool = True) -> bool:
+    """Vuelca un anuncio largo en el estado. Con `secret` usa la batería al 1 %.
+    `live=False`: no toca batería, oreja ni caja, que da otra fuente mejor (AAP); los
+    anuncios llegan con retraso y redondean distinto, y la harían oscilar."""
     ts = time.time() if ts is None else ts
     changed = False
     src = SRC_ENC if secret else SRC_CLEAR
     bat = secret or adv
+    changed |= store.update("model", adv.model, src, ts)
+    changed |= store.update("lid_closed", adv.lid_closed, src, ts)
+    store.update("rssi", rssi, src, ts)
+    if not live:
+        return changed
     for field in ("left", "right", "case"):
         changed |= store.update(field, getattr(bat, field), src, ts)
-    changed |= store.update("model", adv.model, src, ts)
     changed |= store.update("left_in_ear", adv.left_in_ear, src, ts)
     changed |= store.update("right_in_ear", adv.right_in_ear, src, ts)
     if adv.both_in_case:
@@ -96,15 +108,19 @@ def apply_pod(store: StateStore, adv: PodAdvert, secret: PodSecret | None,
         l_case = r_case = False
     changed |= store.update("left_in_case", l_case, src, ts)
     changed |= store.update("right_in_case", r_case, src, ts)
-    changed |= store.update("lid_closed", adv.lid_closed, src, ts)
-    store.update("rssi", rssi, src, ts)
     return changed
 
 
 def apply_case(store: StateStore, case: CaseAdvert, rssi: int | None = None,
-               ts: float | None = None) -> bool:
+               ts: float | None = None, live: bool = True) -> bool:
+    """`live=False`: como en apply_pod, deja batería, oreja y caja a AAP."""
     ts = time.time() if ts is None else ts
-    changed = store.update("case", case.case, SRC_CASE, ts)
+    changed = store.update("lid_closed", case.lid_closed, SRC_CASE, ts)
+    changed |= store.update("case_on_charger", case.on_charger, SRC_CASE, ts)
+    store.update("rssi", rssi, SRC_CASE, ts)
+    if not live:
+        return changed
+    changed |= store.update("case", case.case, SRC_CASE, ts)
     changed |= store.update("left", case.left, SRC_CASE, ts)
     changed |= store.update("right", case.right, SRC_CASE, ts)
     # Los auriculares cuentan como "en la caja" si la caja informa de su batería.
@@ -113,7 +129,4 @@ def apply_case(store: StateStore, case: CaseAdvert, rssi: int | None = None,
     if case.pods_in_case:
         changed |= store.update("left_in_ear", False, SRC_CASE, ts)
         changed |= store.update("right_in_ear", False, SRC_CASE, ts)
-    changed |= store.update("lid_closed", case.lid_closed, SRC_CASE, ts)
-    changed |= store.update("case_on_charger", case.on_charger, SRC_CASE, ts)
-    store.update("rssi", rssi, SRC_CASE, ts)
     return changed

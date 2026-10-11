@@ -10,7 +10,9 @@ pone como salida por defecto aunque sigan en la caja. Aquí:
 Solo se actúa en esas transiciones, para no pisar lo que el usuario elija a mano.
 Las aplicaciones siguen a la salida por defecto (WirePlumber, linking.follow-default-target).
 """
+import json
 import logging
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -42,6 +44,36 @@ class PactlSinks:
 
     def set_default(self, name: str) -> bool:
         return self._run("set-default-sink", name) is not None
+
+    def volume(self, name: str) -> int | None:
+        """Volumen (%) del primer canal: 'Volume: front-left: 26214 /  40% / ...'."""
+        m = re.search(r"(\d+)%", self._run("get-sink-volume", name) or "")
+        return int(m.group(1)) if m else None
+
+    def set_volume(self, name: str, pct: int) -> bool:
+        return self._run("set-sink-volume", name, f"{pct}%") is not None
+
+    def _json(self, *args: str):
+        try:
+            return json.loads(self._run("-f", "json", *args) or "null")
+        except ValueError:
+            return None
+
+    def mic_in_use(self) -> bool | None:
+        """¿Alguna aplicación graba de un micrófono? (llamada, OBS, notas de voz...).
+        Las grabaciones de un .monitor (visualizadores, medidores) no cuentan.
+        None si pactl no da JSON (pipewire-pulse antiguo)."""
+        outputs, sources = self._json("list", "source-outputs"), self._json("list", "sources")
+        if not isinstance(outputs, list) or not isinstance(sources, list):
+            return None
+        return is_recording_mic(outputs, sources)
+
+
+def is_recording_mic(outputs: list[dict], sources: list[dict]) -> bool:
+    monitors = {s.get("index") for s in sources
+                if str(s.get("name", "")).endswith(".monitor")
+                or (s.get("properties") or {}).get("device.class") == "monitor"}
+    return any(not o.get("corked") and o.get("source") not in monitors for o in outputs)
 
 
 def airpods_sink_prefix(address: str) -> str:
@@ -108,3 +140,106 @@ class AudioRouter:
     def disconnected(self) -> None:
         self.present = False
         self.pending_since = None
+
+
+CONVERSATION_SWITCH_S = 120   # un cambio a ambiente más antiguo se considera hecho a mano
+
+
+@dataclass
+class CallGuard:
+    """En una llamada la detección de conversación salta cada vez que hablas: los AirPods
+    pasan a sonido ambiente y bajaría el volumen de la propia llamada. iOS la desactiva
+    durante las llamadas; aquí igual, con "micrófono en uso" como señal de llamada.
+
+    Solo se reactiva si la desactivamos nosotros y sigue desactivada al colgar: si el
+    usuario la cambia a mano durante la llamada, manda él.
+    """
+    suspended: bool = False   # la desactivamos nosotros y falta reactivarla
+    # Modo anterior si la detección acaba de pasar a sonido ambiente (estabas hablando):
+    # al apagarla a mitad de conversación los AirPods se quedan en ambiente.
+    switched_from: str | None = None
+    switched_at: float | None = None
+
+    def note_mode(self, old: str | None, new: str | None, ca_enabled: bool | None, now: float) -> None:
+        if new == "transparency" and old not in (None, "transparency") and ca_enabled:
+            self.switched_from, self.switched_at = old, now
+        elif new != "transparency":
+            self.switched_from = self.switched_at = None
+
+    def mode_to_restore(self, current: str | None, now: float) -> str | None:
+        """Al empezar la llamada: modo al que volver si la conversación lo cambió hace poco."""
+        prev, at = self.switched_from, self.switched_at
+        self.switched_from = self.switched_at = None
+        if current == "transparency" and prev and at is not None and now - at <= CONVERSATION_SWITCH_S:
+            return prev
+        return None
+
+    def tick(self, in_call: bool, ca_enabled: bool | None, talking: bool = False) -> bool | None:
+        """Valor a enviar a conversational_awareness, o None si no hay que hacer nada.
+
+        `talking`: los AirPods están en plena conversación. Apagar la detección entonces
+        los deja atascados en ese estado (sonido de llamada) hasta reconectarlos: se
+        espera a que ellos mismos den la conversación por terminada."""
+        if in_call:
+            if ca_enabled is True and not self.suspended and not talking:
+                self.suspended = True
+                return False
+            return None
+        if self.suspended and ca_enabled is not None:   # sin saber el valor actual, esperar
+            self.suspended = False
+            return True if ca_enabled is False else None
+        return None
+
+
+# Nivel de conversación (AAP) -> fracción del volumen original. 1-2: hablando,
+# 3: dejando de hablar, 6-9: normal (se restaura).
+DUCK_LEVELS = {1: 0.3, 2: 0.3, 3: 0.6}
+RESTORE_FROM = 6
+
+
+@dataclass
+class VolumeDucker:
+    """Baja el volumen de los AirPods mientras hablas, como iOS con "Detección de conversación".
+
+    Los AirPods ya bajan el ANC y suben el ambiente ellos solos; el volumen lo tiene que
+    bajar el equipo. Solo se restaura si seguimos en el volumen que pusimos nosotros:
+    si el usuario lo cambia a mano mientras tanto, se respeta.
+    """
+    sinks: object
+    original: int | None = None
+    sink: str | None = None
+    applied: int | None = None
+
+    def on_level(self, sink: str | None, level: int) -> int | None:
+        """Devuelve el volumen puesto, si cambia algo."""
+        if level >= RESTORE_FROM:
+            return self.restore()
+        factor = DUCK_LEVELS.get(level)
+        if factor is None or not sink:
+            return None
+        if self.original is None or self.sink != sink:
+            current = self.sinks.volume(sink)
+            if current is None:
+                return None
+            self.original, self.sink = current, sink
+        target = max(1, round(self.original * factor))
+        if target == self.applied:
+            return None
+        if self.sinks.set_volume(sink, target):
+            self.applied = target
+            log.info("conversación (nivel %d): volumen %d%% -> %d%%", level, self.original, target)
+            return target
+        return None
+
+    def restore(self) -> int | None:
+        if self.original is None:
+            return None
+        sink, original, applied = self.sink, self.original, self.applied
+        self.original = self.sink = self.applied = None
+        if self.sinks.volume(sink) != applied:
+            log.info("conversación terminada: el volumen se cambió a mano, no se restaura")
+            return None
+        if self.sinks.set_volume(sink, original):
+            log.info("conversación terminada: volumen restaurado a %d%%", original)
+            return original
+        return None

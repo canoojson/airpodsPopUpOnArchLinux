@@ -1,0 +1,43 @@
+# Maintainer: canoojson
+# Fuente: packaging/aur/airpods-linux/PKGBUILD en el repositorio; el workflow de releases
+# actualiza pkgver y sha256sums y lo publica en AUR.
+pkgname=airpods-linux
+pkgver=0.1.6
+pkgrel=1
+pkgdesc="Batería de los AirPods (también con la caja cerrada), popup al abrir la caja, modos de escucha y pausa al quitártelos"
+arch=('any')
+url="https://github.com/canoojson/airpodsPopUpOnArchLinux"
+license=('GPL-3.0-or-later')
+depends=('python' 'python-cryptography' 'python-dbus' 'python-gobject' 'bluez' 'bluez-utils')
+makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
+checkdepends=('python-pytest')
+optdepends=('libnotify: notificaciones (popup sin Noctalia, batería baja, actualizaciones)'
+            'libpulse: el audio sigue a la oreja y baja el volumen al hablar (pactl)'
+            'noctalia: widget de barra, panel y popup estilo iOS')
+install=airpods-linux.install
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('d3b6675c607d2520fb36b5fc5fd726a31582f645624e766234923e24465c7aae')
+
+_srcdir() { echo "airpodsPopUpOnArchLinux-$pkgver"; }
+
+build() {
+  cd "$(_srcdir)"
+  python -m build --wheel --no-isolation
+}
+
+check() {
+  cd "$(_srcdir)"
+  # Sin hardware ni D-Bus: los tests que los necesitan se saltan solos.
+  python -m pytest -q -p no:cacheprovider
+}
+
+package() {
+  cd "$(_srcdir)"
+  python -m installer --destdir="$pkgdir" dist/*.whl
+  sed 's|@AIRPODSD@|/usr/bin/airpodsd|' contrib/airpodsd.service.in \
+    | install -Dm644 /dev/stdin "$pkgdir/usr/lib/systemd/user/airpodsd.service"
+  install -d "$pkgdir/usr/share/$pkgname/noctalia"
+  cp -r integrations/noctalia/airpods "$pkgdir/usr/share/$pkgname/noctalia/"
+  install -Dm644 README.md docs/findings.md -t "$pkgdir/usr/share/doc/$pkgname/"
+  install -Dm644 CREDITS.md -t "$pkgdir/usr/share/licenses/$pkgname/"
+}

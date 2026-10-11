@@ -94,6 +94,11 @@ if command -v pacman >/dev/null; then pkg_hint="sudo pacman -S --needed"
 elif command -v apt-get >/dev/null; then pkg_hint="sudo apt install"
 elif command -v dnf >/dev/null; then pkg_hint="sudo dnf install"; fi
 
+if command -v pacman >/dev/null; then
+  for pkg in airpods-linux airpods-linux-git; do
+    pacman -Qq "$pkg" >/dev/null 2>&1 && die "$pkg está instalado como paquete (AUR): actualiza con tu gestor de paquetes, o desinstálalo antes de usar este script"
+  done
+fi
 command -v python3 >/dev/null || die "falta python3 (>= 3.11)"
 python3 - <<'EOF' || die "se necesita Python >= 3.11 (tienes $(python3 -V 2>&1))"
 import sys; sys.exit(sys.version_info < (3, 11))

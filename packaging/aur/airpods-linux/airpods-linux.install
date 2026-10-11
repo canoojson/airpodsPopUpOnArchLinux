@@ -1,0 +1,18 @@
+post_install() {
+  cat <<'MSG'
+==> AirPods Linux: pasos para cada usuario
+  1. Activa el servicio:          systemctl --user enable --now airpodsd
+  2. Conecta los AirPods. Sin airpods-helper, airpodsd obtiene las claves solo;
+     si lo usas:                  airpodsctl keys fetch  (con airpods-helper parado)
+  3. Comprueba:                   airpodsctl status
+  Recomendado: "Experimental = true" en /etc/bluetooth/main.conf y
+  sudo systemctl restart bluetooth (popup en ~1 s, sin escaneo continuo).
+  Noctalia: ln -s /usr/share/airpods-linux/noctalia/airpods ~/.local/share/noctalia/plugins/airpods
+            noctalia msg plugins enable canoojson/airpods
+  Conflictos de audio conocidos (Wallpaper Engine, EasyEffects): ver el README.
+MSG
+}
+
+post_upgrade() {
+  echo "==> AirPods Linux: reinicia el servicio en cada sesión: systemctl --user restart airpodsd"
+}

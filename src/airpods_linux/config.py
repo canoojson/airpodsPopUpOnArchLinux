@@ -12,8 +12,13 @@ DEFAULTS = {
     "ear_pause": True,           # pausar al quitarse un auricular
     "ear_resume": True,          # reanudar al volver a ponérselo
     "audio_follow_ear": True,    # el audio pasa a los AirPods solo al ponérselos
+    "low_battery_alert": True,   # aviso al 20 % y al 10 %
+    "aap": True,                 # conexión AAP propia (modos de escucha...) si airpods-helper no la usa
+    "conversation_duck": True,   # bajar el volumen al hablar (con la detección de conversación activa)
+    "conversation_suspended": False,    # interno: la desactivó airpodsd por una llamada y falta reactivarla
 }
-BOOL_KEYS = {"update_check", "ear_pause", "ear_resume", "audio_follow_ear"}
+BOOL_KEYS = {"update_check", "ear_pause", "ear_resume", "audio_follow_ear", "low_battery_alert", "aap",
+             "conversation_duck"}
 
 
 def load(path: Path = CONFIG_PATH) -> dict:

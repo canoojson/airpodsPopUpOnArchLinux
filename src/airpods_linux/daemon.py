@@ -3,6 +3,11 @@ por D-Bus (bus de sesión) y muestra un popup al abrir la caja con los auricular
 
 D-Bus: io.github.AirpodsLinux  /io/github/AirpodsLinux  io.github.AirpodsLinux1
   GetState() -> s (JSON)      StateChanged(s)   CaseOpened(s)   CaseClosed()
+  SetSetting(s nombre, s valor)   FetchKeys() -> b   (con la conexión AAP propia)
+
+Con los AirPods conectados y sin airpods-helper, airpodsd abre su propia conexión AAP:
+batería al 1 % y oreja al instante, modos de escucha y demás ajustes, y las claves de
+proximidad sin tener que ejecutar airpodsctl keys fetch.
 """
 import argparse
 import json
@@ -20,17 +25,22 @@ import dbus.mainloop.glib
 import dbus.service
 from gi.repository import Gio, GLib
 
+from . import aap
 from . import keys as keys_mod
 from . import config as config_mod
+from . import history as history_mod
 from . import update as update_mod
+from .alerts import LowBatteryAlerts, message as alert_message
 from .fsutil import atomic_write_text
-from .audio import AudioRouter, PactlSinks, airpods_sink_prefix
+from .audio import RESTORE_FROM, AudioRouter, CallGuard, PactlSinks, VolumeDucker, airpods_sink_prefix
 from .bluez import get_alias, paired_devices, select_airpods
 from .ear import PAUSE, RESUME, EarPauseLogic
 from .media import MediaController
 from .events import CLOSED, OPENED, CaseEventDetector
 from .proximity import MODEL_NAMES
-from .state import STATE_PATH, StateStore
+from .state import STATE_PATH, StateStore, runtime_status_path
+
+SRC_AAP = "aap"
 
 log = logging.getLogger("airpodsd")
 
@@ -42,12 +52,7 @@ POPUP_PANEL = NOCTALIA_PLUGIN + ":popup"
 UPDATE_INTERVAL_S = 24 * 3600
 HELPER_BUS = "org.costa.AirPods"   # airpods-helper: detección en oreja al instante (AAP)
 HELPER_PATH = "/org/costa/AirPods"
-
-
-def runtime_status_path() -> Path:
-    """Estado en vivo para widgets que no hablan D-Bus (Noctalia lo lee con readFileAsync)."""
-    base = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
-    return Path(base) / "airpods-linux" / "status.json"
+AAP_RETRY_S = 30
 
 
 class Service(dbus.service.Object):
@@ -68,6 +73,18 @@ class Service(dbus.service.Object):
     def CheckUpdates(self):
         """Busca una versión nueva ya; el resultado aparece en el estado ('update')."""
         self._daemon.check_updates(manual=True)
+
+    @dbus.service.method(IFACE, in_signature="ss")
+    def SetSetting(self, name, value):
+        """Cambia un ajuste de los AirPods por AAP (ver aap.SETTINGS)."""
+        err = self._daemon.set_setting(str(name), str(value))
+        if err:
+            raise dbus.exceptions.DBusException(err, name=IFACE + ".Error")
+
+    @dbus.service.method(IFACE, out_signature="b")
+    def FetchKeys(self):
+        """Pide las claves de proximidad por la conexión AAP; se guardan al llegar."""
+        return self._daemon.aap is not None and self._daemon.aap.request_keys()
 
     @dbus.service.signal(IFACE, signature="s")
     def StateChanged(self, state_json):
@@ -212,13 +229,27 @@ class Daemon:
         self.media = MediaController(self.session_bus)
         sinks = PactlSinks()
         self.audio = AudioRouter(sinks) if sinks.available() else None
+        self.ducker = VolumeDucker(sinks) if sinks.available() else None
+        self.sinks = sinks
         if not self.audio:
             log.warning("pactl no está instalado: el audio no seguirá a la oreja")
+        self.alerts = LowBatteryAlerts()
+        self.history = history_mod.BatteryHistory().load()
+        self.history.prune(time.time())
+        # Conexión AAP propia (aap_client); se abre en _manage_aap.
+        self.aap = None
+        self._aap_next_try = 0.0
+        self.aap_settings: dict = {}
+        self.aap_primary_left: bool | None = None
+        self.conversation: int | None = None
+        self.in_call = False
+        self.keys_received: float | None = None   # última respuesta de claves por AAP
+        self.call_guard = CallGuard(suspended=bool(self.config.get("conversation_suspended")))
         self._helper_ear = {"left": None, "right": None}
         self.system_bus = dbus.SystemBus()
 
         from .scanner import BleScanner, Tracker
-        self.tracker = Tracker(self.store, self.keys, on_change=self._on_change, on_own=self._on_own)
+        self.tracker = Tracker(self.store, self.keys, on_change=self._on_ble_change, on_own=self._on_own)
         self.scanner = BleScanner(self.tracker.handle, window=(args.on, args.off), passive=not args.no_passive)
         log.info("modo de escaneo: %s", "pasivo (AdvertisementMonitor)" if self.scanner.passive
                  else f"ventanas {args.on}/{args.off} s")
@@ -264,14 +295,33 @@ class Daemon:
                       "available": self.audio is not None},
             "ear": {"pause": bool(self.config.get("ear_pause", True)),
                     "resume": bool(self.config.get("ear_resume", True)),
-                    "source": "airpods-helper" if self._helper_active() else "ble"},
+                    "source": self._ear_source()},
+            "alerts": {"low_battery": bool(self.config.get("low_battery_alert", True))},
+            "aap": {"enabled": bool(self.config.get("aap", True)),
+                    "connected": bool(self.aap and self.aap.connected),
+                    # Quién tiene el canal AAP: nosotros, airpods-helper o nadie.
+                    "owner": "airpodsd" if self.aap and self.aap.connected
+                    else ("airpods-helper" if self._helper_active() else None),
+                    "settings": self.aap_settings,
+                    "modes": aap.listening_modes(v("model")),
+                    "conversation": self.conversation,
+                    "conversation_duck": bool(self.config.get("conversation_duck", True)),
+                    "in_call": self.in_call,
+                    "keys_received": self.keys_received},
+            "history": history_mod.summary(self.history, time.time()),
             "update": {**self.update_info, "enabled": bool(self.config.get("update_check")),
-                       "managed": update_mod.managed_install()},
+                       "managed": update_mod.managed_install(), "install": update_mod.install_kind()},
             **self.store.to_dict(),
         }
 
+    def _ear_source(self) -> str:
+        if self.aap and self.aap.connected:
+            return "aap"
+        return "airpods-helper" if self._helper_active() else "ble"
+
     def popup_payload(self) -> dict:
         st = self.state()
+        st.pop("history", None)   # el popup no la usa y va por la línea de órdenes de noctalia
         g = self.store.get
         st["title"] = st["name"] or st["model_name"]
         st["summary"] = f"Izquierdo {pct(g('left'))} · Derecho {pct(g('right'))} · Caja {pct(g('case'))}"
@@ -307,6 +357,11 @@ class Daemon:
                 self._ear_changed(self._helper_ear["left"], self._helper_ear["right"], "airpods-helper")
         self.session_bus.add_signal_receiver(changed, "PropertiesChanged", "org.freedesktop.DBus.Properties",
                                              HELPER_BUS, HELPER_PATH)
+        # airpods-helper es activable por D-Bus: get_object() lo arrancaría aunque el usuario
+        # lo haya parado, y entonces ocuparía el canal AAP. Solo se consulta si ya está en marcha.
+        if not self._helper_active():
+            log.info("detección en oreja: anuncios BLE y AAP propio (airpods-helper no está en marcha)")
+            return
         try:
             obj = self.session_bus.get_object(HELPER_BUS, HELPER_PATH, introspect=False)
             props = obj.GetAll(HELPER_BUS, dbus_interface="org.freedesktop.DBus.Properties")
@@ -336,13 +391,32 @@ class Daemon:
         elif action == RESUME:
             self.media.forget()
 
+    def _on_ble_change(self, _store) -> None:
+        # Los anuncios BLE cuentan para la pausa: con un auricular en la caja airpods-helper
+        # deja de informar de la oreja, y sin AAP son la única fuente. Con nuestra conexión
+        # AAP la oreja del estado la escribe AAP: no se pasa como si fuera de BLE.
+        if not self.tracker.aap_active:
+            self._ear_changed(self.store.value("left_in_ear"), self.store.value("right_in_ear"), "BLE",
+                              self.store.value("left_in_case"), self.store.value("right_in_case"))
+        self._on_change(self.store)
+
     def _on_change(self, _store) -> None:
-        # Los anuncios BLE siempre cuentan: con un auricular en la caja airpods-helper deja
-        # de informar de la oreja, y sin airpods-helper son la única fuente.
-        self._ear_changed(self.store.value("left_in_ear"), self.store.value("right_in_ear"), "BLE",
-                          self.store.value("left_in_case"), self.store.value("right_in_case"))
+        self._battery_tick()
         self.service.StateChanged(self.write_status())
         self.popup.update(self.popup_payload())
+
+    # --- historial y aviso de batería baja --------------------------------------
+
+    def _battery_tick(self) -> None:
+        now = time.time()
+        self.history.record(self.store, now)
+        alerts = self.alerts.check(self.store, now, self.connected())
+        if alerts and self.config.get("low_battery_alert", True):
+            title, body, urgent = alert_message(alerts)
+            log.info("batería baja: %s", body)
+            if shutil.which("notify-send"):
+                spawn(["notify-send", "-a", "AirPods", "-i", "battery-caution" if urgent else "battery-low",
+                       "-u", "critical" if urgent else "normal", title, body])
 
     def _audio_tick(self) -> bool:
         """Cada 2 s con los AirPods conectados: al conectarse en la caja, no robar el audio."""
@@ -361,6 +435,168 @@ class Daemon:
         connected = self.connected()
         if connected != self._last_connected:
             self._last_connected = connected
+            self._on_change(self.store)
+        self._manage_aap(connected)
+        return True
+
+    # --- conexión AAP propia ----------------------------------------------------
+
+    def _manage_aap(self, connected: bool | None) -> None:
+        address = self.airpods_address()
+        want = (bool(self.config.get("aap", True)) and connected is True and address is not None
+                and not self._helper_active())
+        if not want:
+            if self.aap:
+                self.aap.stop()
+                self.aap = None
+            return
+        if self.aap and self.aap.address != address:
+            self.aap.stop()
+            self.aap = None
+        if self.aap is None:
+            from .aap_client import AapClient
+            self.aap = AapClient(address, self._on_aap_packet, self._on_aap_state)
+        if not self.aap.connected and not self.aap.connecting and time.time() >= self._aap_next_try:
+            self._aap_next_try = time.time() + AAP_RETRY_S
+            self.aap.start()
+
+    def _on_aap_state(self, connected: bool) -> None:
+        self.tracker.aap_active = connected
+        # Lo último que vio la fuente BLE ya no vale (mientras tanto el estado lo escribía AAP).
+        self.ear.source_counts.pop("BLE", None)
+        if not connected:
+            self.aap_settings = {}
+            self.conversation = None
+            if self.ducker:
+                self.ducker.restore()
+        self._on_change(self.store)
+
+    def _on_aap_packet(self, pkt: bytes) -> None:
+        now = time.time()
+        if (bat := aap.parse_battery(pkt)):
+            log.debug("AAP: batería %s", bat)
+            if bat.primary_left is not None:
+                self.aap_primary_left = bat.primary_left
+            changed = False
+            for field in ("left", "right", "case"):
+                changed |= self.store.update(field, getattr(bat, field), SRC_AAP, now)
+            if changed:
+                self.store.save()
+                self._on_change(self.store)
+        elif (ear := aap.parse_ear(pkt)):
+            log.debug("AAP: oreja %s", ear)
+            self._on_aap_ear(ear)
+        elif (setting := aap.parse_setting(pkt)):
+            name, value = setting
+            if name == "listening_mode":
+                self.call_guard.note_mode(self.aap_settings.get(name), value,
+                                          self.aap_settings.get("conversational_awareness"), now)
+            if self.aap_settings.get(name) != value:
+                self.aap_settings[name] = value
+                log.info("AAP: %s = %s", name, value)
+                self._on_change(self.store)
+        elif (level := aap.parse_conversation(pkt)) is not None:
+            self._on_conversation(level)
+        elif (found := aap.parse_key_response(pkt)) and aap.KEY_IRK in found and aap.KEY_ENC in found:
+            self._on_aap_keys(found)
+        else:
+            log.debug("AAP: paquete sin interpretar %s", pkt.hex())
+
+    def _on_aap_ear(self, ear) -> None:
+        # La oreja por AAP es una fuente propia para la pausa (ver ear.py) y además se
+        # escribe en el estado para el panel. Mientras dura la conexión AAP los anuncios BLE
+        # no tocan la oreja ni cuentan como fuente "BLE" (ver _on_ble_change).
+        sides = aap.ear_sides(ear, self.aap_primary_left)
+        if sides:
+            left, right = sides
+            values = {"left_in_ear": left == aap.EAR_IN, "right_in_ear": right == aap.EAR_IN,
+                      "left_in_case": left == aap.EAR_CASE, "right_in_case": right == aap.EAR_CASE}
+            self._ear_changed(values["left_in_ear"], values["right_in_ear"], "AAP",
+                              values["left_in_case"], values["right_in_case"])
+            # Para el panel: con AAP la oreja va al instante (los anuncios BLE no la tocan).
+            now = time.time()
+            if any([self.store.update(k, v, SRC_AAP, now) for k, v in values.items()]):
+                self.store.save()
+                self._on_change(self.store)
+        else:
+            # Sin saber qué lado es el primario, a la lógica de pausa le basta el número.
+            count = aap.ear_count(ear)
+            self._ear_changed(count >= 1, count >= 2, "AAP")
+
+    def _call_tick(self) -> bool:
+        """Cada 2 s con la conexión AAP: en llamada, la detección de conversación se apaga."""
+        if not (self.aap and self.aap.connected):
+            return True
+        in_call = bool(self.sinks.mic_in_use())
+        if in_call != self.in_call:
+            self.in_call = in_call
+            log.info("micrófono %s", "en uso: modo llamada" if in_call else "libre: fin del modo llamada")
+            if in_call and self.ducker:
+                self.ducker.restore()
+            self._on_change(self.store)
+        talking = self.conversation is not None and self.conversation < RESTORE_FROM
+        send = self.call_guard.tick(in_call, self.aap_settings.get("conversational_awareness"), talking)
+        if send is not None and self._send_setting("conversational_awareness", send):
+            log.info("detección de conversación %s", "reactivada al colgar" if send else
+                     "desactivada durante la llamada")
+            mode = self.call_guard.mode_to_restore(self.aap_settings.get("listening_mode"), time.time())
+            if send is False and mode and self._send_setting("listening_mode", mode):
+                log.info("estabas hablando: el modo vuelve de sonido ambiente a %s", mode)
+        if self.call_guard.suspended != bool(self.config.get("conversation_suspended")):
+            self.config["conversation_suspended"] = self.call_guard.suspended
+            config_mod.save(self.config)
+        return True
+
+    def _on_conversation(self, level: int) -> None:
+        self.conversation = level
+        if not (self.ducker and self.config.get("conversation_duck", True)) or self.in_call:
+            return
+        address = self.airpods_address()
+        prefix = address and airpods_sink_prefix(address)
+        sink = next((n for n in self.sinks.names() if prefix and n.startswith(prefix)), None)
+        if sink and sink == self.sinks.default():
+            self.ducker.on_level(sink, level)
+        elif level >= RESTORE_FROM:
+            self.ducker.restore()
+
+    def _on_aap_keys(self, found: dict) -> None:
+        new = keys_mod.ProximityKeys(self.aap.address, found[aap.KEY_IRK], found[aap.KEY_ENC])
+        self.keys_received = time.time()
+        if new == self.keys:
+            log.debug("AAP: claves de proximidad recibidas, sin cambios")
+            self._on_change(self.store)
+            return
+        keys_mod.save(new)
+        self.keys = self.tracker.keys = new
+        self.tracker.reset_cache()
+        log.info("AAP: claves de proximidad guardadas para %s", new.address)
+        self._on_change(self.store)
+
+    def set_setting(self, name: str, raw: str) -> str | None:
+        """Devuelve un mensaje de error, o None si se envió."""
+        setting = aap.SETTINGS.get(name)
+        if setting is None:
+            return f"ajuste desconocido: {name} (disponibles: {', '.join(aap.SETTINGS)})"
+        if not (self.aap and self.aap.connected):
+            if self._helper_active():
+                return "airpods-helper tiene la conexión AAP: usa airpods-cli o páralo"
+            return "sin conexión AAP con los AirPods (¿están conectados a este equipo?)"
+        try:
+            value = setting.parse(raw)
+            aap.setting_packet(name, value)
+        except ValueError as e:
+            return f"{name}: {e}"
+        if not self._send_setting(name, value):
+            return "no se pudo enviar el ajuste"
+        return None
+
+    def _send_setting(self, name: str, value) -> bool:
+        # Algunos ajustes (p. ej. la detección de conversación) los aplican los AirPods sin
+        # devolverlos: se da por bueno el valor enviado, y si lo devuelven, manda el suyo.
+        if not self.aap.send(aap.setting_packet(name, value)):
+            return False
+        if self.aap_settings.get(name) != value:
+            self.aap_settings[name] = value
             self._on_change(self.store)
         return True
 
@@ -451,11 +687,21 @@ class Daemon:
         self._on_change(self.store)
         return False
 
+    def _quit(self) -> bool:
+        if self.ducker:
+            self.ducker.restore()
+        if self.aap:
+            self.aap.stop()
+        self.scanner.quit()
+        return False
+
     def run(self) -> None:
-        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.scanner.quit)
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self._quit)
+        GLib.timeout_add_seconds(86400, lambda: (self.history.prune(time.time()), True)[1])
         self.write_status()
         GLib.timeout_add_seconds(5, self._poll_connection)
         GLib.timeout_add_seconds(2, self._audio_tick)
+        GLib.timeout_add_seconds(2, self._call_tick)
         # Primera comprobación al minuto de arrancar (con la red ya lista) y luego cada día.
         GLib.timeout_add_seconds(60, lambda: (self._periodic_update_check(), False)[1])
         GLib.timeout_add_seconds(UPDATE_INTERVAL_S, self._periodic_update_check)

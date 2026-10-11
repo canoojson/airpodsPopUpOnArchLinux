@@ -56,7 +56,7 @@ if [ "$PURGE" = 1 ]; then
 else
   kept=()
   [ -e "$CONFIG_DIR" ] && kept+=("$CONFIG_DIR (claves y ajustes)")
-  [ -e "$STATE_DIR" ] && kept+=("$STATE_DIR (último estado)")
+  [ -e "$STATE_DIR" ] && kept+=("$STATE_DIR (último estado e historial de batería)")
   if [ ${#kept[@]} -gt 0 ]; then
     echo "  Se conservan, para una reinstalación futura:"
     printf '    - %s\n' "${kept[@]}"

@@ -23,3 +23,39 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" airpods-linux.tar.gz install.sh uninstall.sh \
             --title "$GITHUB_REF_NAME" --generate-notes
+
+  # Publica packaging/aur/airpods-linux en AUR con la versión de la etiqueta.
+  # Solo si existe el secreto AUR_SSH_PRIVATE_KEY (clave SSH de la cuenta de AUR).
+  aur:
+    needs: release
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.AUR_KEY != ''
+      - name: Actualizar y subir el PKGBUILD
+        if: env.AUR_KEY != ''
+        run: |
+          pacman -Syu --noconfirm --needed git openssh
+          ver="${GITHUB_REF_NAME#v}"
+          sum="$(curl -fsSL "https://github.com/$GITHUB_REPOSITORY/archive/refs/tags/$GITHUB_REF_NAME.tar.gz" | sha256sum | cut -d' ' -f1)"
+          install -dm700 ~/.ssh
+          printf '%s\n' "$AUR_KEY" > ~/.ssh/aur && chmod 600 ~/.ssh/aur
+          ssh-keyscan -t ed25519 aur.archlinux.org >> ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/aur -o IdentitiesOnly=yes"
+          git clone ssh://aur@aur.archlinux.org/airpods-linux.git aur
+          cp packaging/aur/airpods-linux/PKGBUILD packaging/aur/airpods-linux/airpods-linux.install aur/
+          sed -i -e "s/^pkgver=.*/pkgver=$ver/" -e "s/^pkgrel=.*/pkgrel=1/" \
+                 -e "s/^sha256sums=.*/sha256sums=('$sum')/" aur/PKGBUILD
+          useradd -m builder && chown -R builder aur
+          su builder -c "cd aur && makepkg --printsrcinfo > .SRCINFO"
+          cd aur
+          git config --global --add safe.directory "$PWD"   # el directorio es de builder
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add PKGBUILD airpods-linux.install .SRCINFO
+          git diff --cached --quiet && { echo "AUR ya está al día"; exit 0; }
+          git commit -m "Versión $ver"
+          git push origin HEAD:master

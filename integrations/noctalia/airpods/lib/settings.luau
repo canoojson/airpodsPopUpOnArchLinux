@@ -1,5 +1,6 @@
 --!nonstrict
--- Vista de ajustes del panel: nombre del dispositivo, comprobación automática de
+-- Vista de ajustes del panel: nombre del dispositivo, preferencias de airpodsd, ajustes
+-- de los AirPods (con la conexión AAP de airpodsd), comprobación automática de
 -- actualizaciones y búsqueda/instalación manual. Todo pasa por airpodsctl (ruta
 -- absoluta publicada por airpodsd en status.json, para no depender del PATH).
 
@@ -58,6 +59,16 @@ local function setOption(status, key, enabled, refresh, rerender)
   end, rerender)
 end
 
+-- Ajuste de los propios AirPods por AAP (airpodsctl feature).
+local function setFeature(status, name, enabled, refresh, rerender)
+  run(status, { "feature", name, enabled and "on" or "off" }, "toggle", 8000, function(result)
+    if result.exitCode ~= 0 then
+      message = { text = "Los AirPods no aceptaron el cambio", color = "error" }
+    end
+    refresh()
+  end, rerender)
+end
+
 local function checkNow(status, common, rerender)
   run(status, { "update", "--check", "--json" }, "check", 20000, function(result)
     checkResult = common.decode(result.stdout)
@@ -95,6 +106,9 @@ function M.render(status, opts)
   local currentName = (status and status.name) or ""
   local ear = (status and status.ear) or {}
   local audio = (status and status.audio) or {}
+  local alerts = (status and status.alerts) or {}
+  local aap = (status and status.aap) or {}
+  local device = (aap.owner == "airpodsd" and aap.connected and aap.settings) or nil
 
   local function toggleRow(key, title, subtitle, checked, onToggle)
     return ui.row({ key = key, gap = 10, align = "center" }, {
@@ -107,12 +121,12 @@ function M.render(status, opts)
     })
   end
 
-  local children = {
-    ui.row({ key = "s-header", gap = 8, align = "center" }, {
-      ui.button({ key = "s-back", glyph = "arrow-left", variant = "ghost", tooltip = "Volver", onClick = opts.back }),
-      ui.label({ text = "Ajustes", fontSize = 16, fontWeight = "bold", flexGrow = 1 }),
-    }),
+  local header = ui.row({ key = "s-header", gap = 8, align = "center" }, {
+    ui.button({ key = "s-back", glyph = "arrow-left", variant = "ghost", tooltip = "Volver", onClick = opts.back }),
+    ui.label({ text = "Ajustes", fontSize = 16, fontWeight = "bold", flexGrow = 1 }),
+  })
 
+  local children = {
     ui.label({ key = "s-name-title", text = "Nombre del dispositivo", fontSize = 12, color = "on_surface/0.7" }),
     ui.row({ key = "s-name", gap = 8, align = "center" }, {
       ui.input({ key = "s-name-input", value = currentName, placeholder = (status and status.model_name) or "AirPods",
@@ -130,6 +144,10 @@ function M.render(status, opts)
               ear.pause ~= false, function(v) setOption(status, "ear_pause", v, refresh, rerender) end),
     toggleRow("s-resume", "Reanudar al volver a ponértelo", "Si vuelve a la oreja en menos de 2 min",
               ear.resume ~= false, function(v) setOption(status, "ear_resume", v, refresh, rerender) end),
+    toggleRow("s-lowbat", "Avisar con batería baja", "Al 20 % y al 10 %, una vez por carga",
+              alerts.low_battery ~= false, function(v) setOption(status, "low_battery_alert", v, refresh, rerender) end),
+    toggleRow("s-duck", "Bajar el volumen al hablar", "Con la detección de conversación activada",
+              aap.conversation_duck ~= false, function(v) setOption(status, "conversation_duck", v, refresh, rerender) end),
 
     ui.row({ key = "s-auto", gap = 10, align = "center" }, {
       ui.column({ key = "s-auto-text", gap = 2, flexGrow = 1 }, {
@@ -140,6 +158,18 @@ function M.render(status, opts)
                   onChange = function(v) setOption(status, "update_check", v == "true", refresh, rerender) end }),
     }),
   }
+
+  if device ~= nil then
+    table.insert(children, ui.label({ key = "s-dev-title", text = "AirPods", fontSize = 12, color = "on_surface/0.7" }))
+    if device.one_bud_anc ~= nil then
+      table.insert(children, toggleRow("s-onebud", "Cancelación de ruido con un auricular", "Mantener el modo con uno solo puesto",
+                                       device.one_bud_anc == true, function(v) setFeature(status, "one_bud_anc", v, refresh, rerender) end))
+    end
+    if device.volume_swipe ~= nil then
+      table.insert(children, toggleRow("s-swipe", "Volumen deslizando en el tallo", "Desliza arriba o abajo en el sensor",
+                                       device.volume_swipe == true, function(v) setFeature(status, "volume_swipe", v, refresh, rerender) end))
+    end
+  end
 
   local actions = {
     ui.button({ key = "s-check", text = busy == "check" and "Buscando…" or "Buscar actualizaciones",
@@ -162,7 +192,10 @@ function M.render(status, opts)
   end
   table.insert(children, ui.label({ key = "s-version", text = "AirPods Linux " .. ((status and status.version) or "?"),
                                     fontSize = 11, color = "on_surface/0.45" }))
-  return ui.column({ padding = 16, gap = 12, fill = "surface", radius = 16 }, children)
+  return ui.column({ padding = 16, gap = 12, fill = "surface", radius = 16, flexGrow = 1 }, {
+    header,
+    ui.scroll({ key = "s-scroll", flexGrow = 1 }, { common.scrollBody("s", 12, children) }),
+  })
 end
 
 return M

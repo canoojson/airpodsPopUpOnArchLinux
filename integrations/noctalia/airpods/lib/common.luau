@@ -77,6 +77,17 @@ function M.where(status, side)
   return ""
 end
 
+-- Contenido de un scroll con un hueco a la derecha, para que no quede pegado a la
+-- barra de desplazamiento ni al borde del panel (solo existe paddingH, a ambos lados).
+M.SCROLL_GUTTER = 12
+
+function M.scrollBody(key, gap, children)
+  return ui.row({ key = key .. "-wrap", gap = 0 }, {
+    ui.column({ key = key .. "-body", gap = gap, flexGrow = 1 }, children),
+    ui.box({ key = key .. "-gutter", width = M.SCROLL_GUTTER, height = 1 }),
+  })
+end
+
 -- Tarjeta de batería (auricular o caja) usada por el panel y el popup.
 function M.card(key, glyph, label, battery, subtitle, opts)
   opts = opts or {}

@@ -30,7 +30,10 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 - `airpodsctl` para la terminal y una API D-Bus para integrarlo en otros widgets.
 - **El audio pasa a los AirPods solo cuando te los pones**: aunque se conecten al abrir la caja, el sonido sigue por donde estaba hasta que te pones uno, y vuelve al quitártelos.
 - **Pausa al quitarte un auricular** (cualquiera, también con el otro en la caja) y reanuda al volver a ponértelo, como en iOS.
-- **Ajustes (⚙) en el panel y el popup:** nombre del dispositivo y actualizaciones.
+- **Modo de escucha y ajustes de los AirPods** (cancelación de ruido, adaptativo, ambiente, detección de conversación…) con su propia conexión AAP, sin depender de airpods-helper. Al hablar, baja el volumen como iOS.
+- **Aviso de batería baja** al 20 % y al 10 %, y **historial** con gráfica de las últimas 24 h y el tiempo restante estimado.
+- **Barras de estado**: salida para Waybar, Polybar y similares (`airpodsctl status --waybar`, `airpodsctl monitor`).
+- **Ajustes (⚙) en el panel y el popup:** nombre del dispositivo, comportamiento y actualizaciones.
 - **Actualizaciones** con un comando o un clic, con aviso automático opcional (desactivado salvo que lo actives).
 - Todo local: no usa la cuenta de iCloud, y solo se conecta a internet si activas la comprobación de actualizaciones.
 
@@ -78,7 +81,7 @@ La dependencia de Python restante (`cryptography`) se instala sola en un entorno
 
 - **[Noctalia](https://github.com/noctalia-dev/noctalia) v5** con plugin API ≥ 30 (v5.0.1 o posterior; probado con 5.2.0): widget de barra, panel y el popup. Sin Noctalia, el popup es una notificación (`notify-send`, paquete `libnotify`).
 - **Hyprland**: animación de deslizamiento del popup (ver abajo).
-- **[airpods-helper](https://github.com/superninjv/airpods-helper)**: si está instalado, el panel de Noctalia muestra también el selector de modo de escucha (cancelación de ruido, adaptativo, ambiente).
+- **[airpods-helper](https://github.com/superninjv/airpods-helper)**: ya no hace falta. `airpodsd` habla AAP por su cuenta; si airpods-helper está en marcha, le deja el canal AAP y el panel usa airpods-cli para el modo de escucha, como antes.
 
 ## Antes de instalar: conflictos de audio conocidos
 
@@ -134,6 +137,15 @@ y reinicia `airpods-daemon`. El resto de airpods-helper (modo de escucha, ecuali
 
 ## Instalación
 
+**Arch Linux (AUR)**: `yay -S airpods-linux` (o `airpods-linux-git` para seguir `main`). Después, en tu usuario:
+
+```sh
+systemctl --user enable --now airpodsd
+ln -s /usr/share/airpods-linux/noctalia/airpods ~/.local/share/noctalia/plugins/airpods   # si usas Noctalia
+```
+
+Con el paquete, las actualizaciones llegan por tu gestor de paquetes (`airpodsctl update` te lo recuerda). No lo mezcles con el instalador de abajo: este se niega a ejecutarse si detecta el paquete.
+
 **En una línea** (descarga la última release, o `main` si aún no hay):
 
 ```sh
@@ -163,11 +175,10 @@ Opciones: `--no-service`, `--no-noctalia`, `--no-bluez`, `--auto-update y|n` (re
 ## Primeros pasos
 
 1. **Empareja** los AirPods con el equipo (con `bluetoothctl` o tu gestor de Bluetooth) y conéctalos.
-2. **Pide sus claves** con la caja abierta cerca. Solo hace falta una vez:
+2. **Las claves**: con los AirPods conectados, `airpodsd` las obtiene solo por su conexión AAP la primera vez. Si usas **airpods-helper** (que ocupa ese canal), pídelas a mano una vez, con airpods-helper parado:
    ```sh
-   airpodsctl keys fetch
+   systemctl --user stop airpods-daemon && airpodsctl keys fetch; systemctl --user start airpods-daemon
    ```
-   Si usas **airpods-helper**, páralo durante este paso, porque ocupa el mismo canal: `systemctl --user stop airpods-daemon`, y luego `start`.
 3. **Comprueba** que funciona:
    ```sh
    airpodsctl status
@@ -187,14 +198,77 @@ Sin claves también funciona, pero con la batería en saltos de 10 %, sin datos 
 
 ```sh
 airpodsctl status [--json] [--scan SEG]   # estado actual o último conocido (--scan 0: solo caché)
-airpodsctl watch [--json]                  # muestra cada cambio en vivo
+airpodsctl status --format '{left}% {right}%' | --waybar   # una línea para barras de estado
+airpodsctl monitor [--format …|--waybar]   # una línea por cada cambio (barras con exec continuo)
+airpodsctl watch [--json]                  # escanea por su cuenta y muestra cada cambio
+airpodsctl mode [off|noise|transparency|adaptive]   # modo de escucha (sin argumento: el actual)
+airpodsctl feature [ajuste] [valor]        # ajustes de los AirPods por AAP (sin argumentos: lista)
+airpodsctl history [--hours 24]            # gráfica de batería y tiempo restante estimado
 airpodsctl keys fetch [MAC] | show         # claves de proximidad
 airpodsctl rename "Mis AirPods"            # nombre en este equipo ('' = el original)
 airpodsctl update [--check]                # busca una versión nueva e instala (--check: solo mira)
-airpodsctl config get | set <opción> true|false   # audio_follow_ear, ear_pause, ear_resume, update_check
+airpodsctl config get | set <opción> true|false   # ver la tabla de opciones más abajo
 systemctl --user status airpodsd          # el servicio
 journalctl --user -u airpodsd -f          # sus logs (aperturas y cierres de la caja)
 ```
+
+Opciones de `airpodsctl config set` (todas menos `aap` también en el ⚙):
+
+| Opción | Por defecto | Qué hace |
+|---|---|---|
+| `audio_follow_ear` | sí | El audio pasa a los AirPods solo al ponértelos |
+| `ear_pause` / `ear_resume` | sí | Pausa al quitarte un auricular y reanuda al volver a ponértelo |
+| `low_battery_alert` | sí | Aviso al 20 % y al 10 % |
+| `aap` | sí | Conexión AAP propia (modos de escucha, ajustes, batería al instante) si airpods-helper no la usa. Solo por terminal |
+| `conversation_duck` | sí | Bajar el volumen mientras hablas (con la detección de conversación activada) |
+| `update_check` | no | Buscar actualizaciones una vez al día |
+
+### Modo de escucha y ajustes de los AirPods
+
+Con los AirPods conectados a este equipo, `airpodsd` abre su propia conexión **AAP**, el protocolo que usa el iPhone. Con ella:
+
+- **Modo de escucha**: cancelación de ruido, adaptativo, sonido ambiente o desactivado. Desde el panel de Noctalia o con `airpodsctl mode noise`. El panel solo ofrece los modos que tiene tu modelo, y los AirPods ignoran el cambio si no llevas ningún auricular puesto.
+- **Detección de conversación**: interruptor en el panel o `airpodsctl feature conversational_awareness on`. Al empezar a hablar, los AirPods dejan pasar el sonido ambiente y `airpodsd` baja el volumen de los AirPods al 30 %. Al terminar, lo devuelve a su nivel, salvo que lo hayas cambiado a mano mientras tanto. **En llamadas** (Discord, Teams, el navegador… cualquier aplicación grabando de un micrófono), `airpodsd` la desactiva mientras dura y la vuelve a activar al colgar, como hace el iPhone: si no, los AirPods pasarían a sonido ambiente cada vez que hablas.
+- **Otros ajustes** (`airpodsctl feature` los lista): nivel del modo adaptativo, cancelación con un solo auricular, volumen deslizando en el tallo, micrófono y volumen de los avisos sonoros.
+- **Batería al 1 % y oreja al instante** mientras están conectados, sin esperar a los anuncios BLE.
+- **Las claves de proximidad** se obtienen solas la primera vez.
+
+Solo puede haber un programa con la conexión AAP. Si [airpods-helper](https://github.com/superninjv/airpods-helper) está en marcha, `airpodsd` se aparta y todo sigue como antes (el panel usa airpods-cli para el modo de escucha). Para que la use `airpodsd`: `systemctl --user disable --now airpods-daemon`. Para no usarla nunca: `airpodsctl config set aap false`.
+
+> [!NOTE]
+> Los formatos de AAP siguen la documentación de LibrePods. Los modos de escucha y la detección de conversación son los mismos que maneja airpods-helper; si algún ajuste no responde en tu modelo, abre un *issue* con la salida de `journalctl --user -u airpodsd` (con `airpodsd -v` se ven los paquetes sin interpretar).
+
+### Aviso de batería baja
+
+Una notificación al bajar del **20 %** y otra, urgente, al bajar del **10 %**, una sola vez por carga. Para los auriculares solo avisa si están conectados a este equipo y fuera de la caja (si los usas con el móvil, avisa el móvil). Para la caja avisa siempre que la vea sin cargar. Se desactiva en el ⚙ o con `airpodsctl config set low_battery_alert false`.
+
+### Historial de batería
+
+`airpodsd` guarda la batería en `~/.local/state/airpods-linux/history.jsonl` cuando cambia, y como mínimo cada 10 minutos mientras recibe datos. Conserva 30 días. El panel de Noctalia muestra la gráfica de las últimas 24 h y, cuando hay suficientes datos de la sesión actual, **cuánto te queda** al ritmo de descarga actual. En la terminal:
+
+```
+$ airpodsctl history
+Últimas 24 h (cada columna ≈ 30 min)
+  Izquierdo  ████▇▇▆▆▅▅▄▄           ███████▇▇▆ 62 %
+  Derecho    ████▇▇▆▆▅▄▄▃           ███████▇▇▆ 60 %
+  Caja       ▆▆▆▆▆▆▆▆▆▆▆▆▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅ 71 %
+  Al ritmo actual, al izquierdo le quedan unas 3 h 10 min
+```
+
+### Waybar y otras barras
+
+`airpodsctl status --waybar` imprime el JSON de un módulo `custom` de Waybar (texto, *tooltip* con las tres baterías, `percentage` y clases `low`, `charging`, `stale`, `connected`). `airpodsctl monitor --waybar` hace lo mismo de forma continua, escuchando a `airpodsd` por D-Bus, así que se actualiza al instante sin sondear:
+
+```jsonc
+"custom/airpods": {
+    "exec": "airpodsctl monitor --waybar --format '{left}% {right}%'",
+    "return-type": "json",
+    "format": "󰋋 {}",
+    "on-click": "airpodsctl mode noise"
+}
+```
+
+Para Polybar, i3blocks, yambar… usa `--format` sin `--waybar`: `airpodsctl monitor --format '{name} {min}%'`. Marcadores: `{left}` `{right}` `{case}` `{min}` (el auricular más bajo de los puestos), `{left_chg}` `{right_chg}` `{case_chg}` (⚡ si cargan), `{name}`, `{mode}` y `{ago}`.
 
 ### Pausa automática al quitarte un auricular
 
@@ -202,7 +276,7 @@ Con los AirPods conectados a este equipo, `airpodsd` pausa lo que esté sonando 
 
 - **Reanuda** si te vuelves a poner ese mismo auricular en menos de 2 minutos, o si lo guardas en la caja mientras sigues con el otro puesto. No reanuda si mientras tanto te quitas también el otro, ni reproduce nada que hubieras pausado tú.
 - Si los AirPods están conectados a otro dispositivo (tu móvil), no toca la reproducción del equipo.
-- **Detección:** combina dos fuentes. Con [airpods-helper](https://github.com/superninjv/airpods-helper) en marcha es instantánea (sus avisos de oreja por AAP). Los anuncios BLE, que tardan unos segundos, cubren los casos en que airpods-helper no informa (por ejemplo, con un auricular en la caja) y el uso sin airpods-helper.
+- **Detección:** combina dos fuentes. Por AAP (la conexión propia de `airpodsd` o la de [airpods-helper](https://github.com/superninjv/airpods-helper)) es instantánea. Los anuncios BLE, que tardan unos segundos, cubren los casos en que AAP no informa (por ejemplo, con un auricular en la caja) y el uso sin conexión.
 - Se activa y desactiva en el ⚙ o con `airpodsctl config set ear_pause|ear_resume true|false`.
 - Si usas airpods-helper, desactiva su propia pausa para que no actúen los dos: en `~/.config/airpods-helper/config.toml`, sección `[ear_detection]`, pon `pause_media = false` y `resume_media = false`, y reinicia `airpods-daemon`.
 
@@ -222,7 +296,8 @@ El panel de la barra y el popup tienen un botón ⚙. El popup no toma el teclad
 
 - **Cambiar el nombre** del dispositivo. Es el nombre en *este* equipo (BlueZ): lo ven el popup, el panel y tu gestor de Bluetooth. El nombre guardado en los propios AirPods, el que ve tu iPhone, no cambia.
 - **Activar o desactivar** que el audio pase a los AirPods solo al ponértelos.
-- **Activar o desactivar** la pausa y la reanudación automáticas.
+- **Activar o desactivar** la pausa y la reanudación automáticas, el aviso de batería baja, y la bajada de volumen al hablar.
+- **Ajustes de los propios AirPods** (con la conexión AAP de `airpodsd`): cancelación con un solo auricular y volumen deslizando en el tallo.
 - **Activar o desactivar** la comprobación automática de actualizaciones.
 - **Buscar actualizaciones** ahora e instalar la nueva versión con un clic si la hay.
 
@@ -240,13 +315,14 @@ Con `hyprland.conf`, usa la regla `layerrule` equivalente (ver la wiki de Hyprla
 
 - **D-Bus** (bus de sesión): `io.github.AirpodsLinux`, objeto `/io/github/AirpodsLinux`, interfaz `io.github.AirpodsLinux1`.
   - `GetState() → s` (JSON), `Reload()` (relee la configuración), `CheckUpdates()` (busca versión nueva; el resultado aparece en el campo `update` del estado)
+  - `SetSetting(s nombre, s valor)` (ajuste de los AirPods por AAP; nombres en `airpodsctl feature`) y `FetchKeys() → b` (pide las claves por la conexión AAP)
   - Señales `StateChanged(s)`, `CaseOpened(s)` y `CaseClosed()`.
   ```sh
   busctl --user call io.github.AirpodsLinux /io/github/AirpodsLinux io.github.AirpodsLinux1 GetState
   ```
 - **Fichero**: `$XDG_RUNTIME_DIR/airpods-linux/status.json`, con el mismo JSON y actualizado en cada cambio. Es útil para Waybar, eww, Quickshell…
 
-Cada campo del JSON lleva `value`, `ts` (época Unix) y `source` (`ble-enc`, `ble-case` o `ble-clear`).
+Cada campo del JSON lleva `value`, `ts` (época Unix) y `source` (`ble-enc`, `ble-case`, `ble-clear` o `aap`). Además: `aap` (conexión, quién la tiene, ajustes de los AirPods y modos disponibles), `history` (series de 24 h y minutos restantes estimados) y `alerts`.
 
 ## Actualizaciones
 
@@ -256,12 +332,12 @@ Cada campo del JSON lleva `value`, `ts` (época Unix) y `source` (`ble-enc`, `bl
   airpodsctl config set update_check true    # activar
   airpodsctl config set update_check false   # desactivar
   ```
-- Si lo instalaste desde un clon de git para desarrollar, `airpodsctl update` no toca nada: actualiza con `git pull`.
+- Si lo instalaste desde un clon de git para desarrollar, `airpodsctl update` no toca nada: actualiza con `git pull`. Con el paquete de AUR, actualiza con tu gestor de paquetes.
 - También puedes volver a ejecutar el instalador de una línea: siempre instala la última versión.
 
 ## Cómo funciona
 
-Los AirPods anuncian por Bluetooth LE un mensaje *Proximity Pairing* de Apple con una parte en claro (batería en pasos de 10 %) y 16 bytes cifrados (batería al 1 %). La caja también anuncia su propio mensaje cifrado, incluso con la tapa cerrada. `airpodsctl keys fetch` pide a los AirPods, por el protocolo AAP (L2CAP 0x1001), su **IRK**, que sirve para reconocer sus direcciones aleatorias, y su **clave de cifrado**. Con ellas `airpodsd` identifica tus AirPods y descifra ambos anuncios. Detalles y capturas en [`docs/findings.md`](docs/findings.md).
+Los AirPods anuncian por Bluetooth LE un mensaje *Proximity Pairing* de Apple con una parte en claro (batería en pasos de 10 %) y 16 bytes cifrados (batería al 1 %). La caja también anuncia su propio mensaje cifrado, incluso con la tapa cerrada. `airpodsctl keys fetch` pide a los AirPods, por el protocolo AAP (L2CAP 0x1001), su **IRK**, que sirve para reconocer sus direcciones aleatorias, y su **clave de cifrado**. Con ellas `airpodsd` identifica tus AirPods y descifra ambos anuncios. Con los AirPods conectados, esa misma conexión AAP queda abierta para leer la batería y la oreja al instante y cambiar el modo de escucha y otros ajustes. Detalles y capturas en [`docs/findings.md`](docs/findings.md).
 
 ## Privacidad y seguridad
 
@@ -275,6 +351,7 @@ Los AirPods anuncian por Bluetooth LE un mensaje *Proximity Pairing* de Apple co
 | Síntoma | Solución |
 |---|---|
 | `keys fetch`: "no enviaron las claves" | Otro programa ocupa el canal AAP (p. ej. `airpods-daemon`); páralo y reintenta. Los AirPods deben estar **conectados** |
+| `airpodsctl mode`: "sin conexión AAP" | Los AirPods no están conectados a este equipo, o airpods-helper tiene el canal (entonces usa `airpods-cli`). En el log: `AAP: conectado a …` |
 | El popup tarda varios segundos | Activa `Experimental = true` en BlueZ; en el log de `airpodsd` debe poner `modo de escaneo: pasivo` |
 | La batería de la caja sale `--` | Con la caja abierta y vacía en el cargador, la caja deja de anunciarse: ciérrala o mete un auricular |
 | No aparece el popup | Comprueba `journalctl --user -u airpodsd` ("caja abierta…") y que el plugin esté activo: `noctalia msg plugins list` |
@@ -304,9 +381,10 @@ uv pip install --python .venv/bin/python -e . pytest
 - `src/airpods_linux/`: parser, cifrado, estado, escáner, daemon y CLI.
 - `integrations/noctalia/airpods/`: el plugin de Noctalia.
 - `tools/`: herramientas de captura de la fase de investigación.
-- `fixtures/`: capturas reales, solo con anuncios propios.
+- `fixtures/`: capturas reales, solo con anuncios propios. `tests/test_fixtures_replay.py` las reproduce por el mismo camino que `airpodsd`, sin claves, también en CI.
+- `packaging/aur/`: los PKGBUILD de `airpods-linux` y `airpods-linux-git`.
 
-Las releases se publican al subir una etiqueta `vX.Y.Z` (GitHub Actions).
+Las releases se publican al subir una etiqueta `vX.Y.Z` (GitHub Actions). Si el repositorio tiene el secreto `AUR_SSH_PRIVATE_KEY`, el mismo workflow actualiza el paquete de AUR.
 
 ## Licencia y créditos
 

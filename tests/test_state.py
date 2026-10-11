@@ -76,3 +76,17 @@ def test_render_marks_stale_values():
 def test_render_empty():
     from airpods_linux.cli import render
     assert "Sin datos" in render(StateStore(path=None))
+
+
+def test_apply_without_live_fields_keeps_the_rest():
+    from airpods_linux.crypto import aes_ecb_encrypt
+    from airpods_linux.proximity import decrypt_pod, parse_pod_advert
+    from airpods_linux.state import StateStore, apply_pod
+    key = bytes(range(16))
+    adv = parse_pod_advert(bytes.fromhex("07190127200baa8f110004") +
+                           aes_ecb_encrypt(key, bytes.fromhex("04e4e455".ljust(32, "0"))))
+    s = StateStore(path=None)
+    apply_pod(s, adv, decrypt_pod(adv, key), ts=1, live=False)
+    assert s.get("left") is None and s.get("right") is None
+    assert s.get("left_in_ear") is None and s.get("left_in_case") is None
+    assert s.value("model") == 0x2027 and s.value("lid_closed") is None
