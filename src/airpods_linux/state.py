@@ -17,7 +17,7 @@ SRC_CASE = "ble-case"    # anuncio de la caja descifrado (1 %)
 SRC_CLEAR = "ble-clear"  # anuncio largo en claro (10 %), solo sin claves
 
 FIELDS = ("model", "left", "right", "case", "left_in_ear", "right_in_ear",
-          "left_in_case", "right_in_case", "lid_closed", "case_on_charger", "rssi")
+          "left_in_case", "right_in_case", "lid_closed", "case_on_charger", "rssi", "audio_state")
 
 
 def state_dir() -> Path:
@@ -91,6 +91,8 @@ def apply_pod(store: StateStore, adv: PodAdvert, secret: PodSecret | None,
     bat = secret or adv
     changed |= store.update("model", adv.model, src, ts)
     changed |= store.update("lid_closed", adv.lid_closed, src, ts)
+    # Estado del audio con el dispositivo al que estén conectados (también si no es este).
+    changed |= store.update("audio_state", adv.connection_state, src, ts)
     store.update("rssi", rssi, src, ts)
     if not live:
         return changed

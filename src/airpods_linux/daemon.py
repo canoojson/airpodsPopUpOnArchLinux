@@ -35,7 +35,7 @@ from .fsutil import atomic_write_text
 from .audio import RESTORE_FROM, AudioRouter, CallGuard, PactlSinks, VolumeDucker, airpods_sink_prefix
 from .bluez import get_alias, paired_devices, select_airpods
 from .ear import PAUSE, RESUME, EarPauseLogic
-from .handoff import HandoffLogic
+from .handoff import AUDIO_STATE_NAMES, HandoffLogic
 from .media import PLAYER_IFACE, MediaController
 from .events import CLOSED, OPENED, CaseEventDetector
 from .proximity import MODEL_NAMES
@@ -400,6 +400,10 @@ class Daemon:
             self.media.forget()
 
     def _on_ble_change(self, _store) -> None:
+        state = self.store.value("audio_state")
+        if state != getattr(self, "_last_audio_state", None):
+            self._last_audio_state = state
+            log.info("AirPods (BLE): audio %s (0x%02x)", AUDIO_STATE_NAMES.get(state, "desconocido"), state or 0)
         # Los anuncios BLE cuentan para la pausa: con un auricular en la caja airpods-helper
         # deja de informar de la oreja, y sin AAP son la única fuente. Con nuestra conexión
         # AAP la oreja del estado la escribe AAP: no se pasa como si fuera de BLE.
@@ -441,12 +445,33 @@ class Daemon:
     # --- cambio entre el iPhone y este equipo (handoff.py) ------------------------
 
     def _handoff_tick(self) -> bool:
-        """Cada 2 s: ¿sale el audio de este equipo por los AirPods?"""
+        """Cada 2 s: ¿sale el audio de este equipo por los AirPods? Y, si se los llevó otro
+        dispositivo con una llamada en marcha aquí, ¿toca devolverlos?"""
         address = self.airpods_address()
-        if address and self.connected(address) is True:
+        if not address:
+            return True
+        connected = self.connected(address)
+        if connected is True:
             default = self.sinks.default() or ""
             self.handoff.note_default_sink(default.startswith(airpods_sink_prefix(address)))
+            return True
+        now = time.time()
+        f_state = self.store.get("audio_state")
+        self.handoff.note_audio_state(f_state["value"] if f_state and now - f_state["ts"] < 60 else None, now)
+        f_left, f_right = self.store.get("left_in_ear"), self.store.get("right_in_ear")
+        seen = max((f["ts"] for f in (f_left, f_right) if f), default=None)
+        in_ear = bool((f_left and f_left["value"]) or (f_right and f_right["value"]))
+        if self.handoff.should_return(now, connected, seen, in_ear, self.sinks.audio_active()):
+            log.info("el otro dispositivo ha dejado de reproducir y aquí sigue sonando algo: vuelvo a conectar los AirPods")
+            self._connect_airpods(address, "al dejar de usarlos el otro dispositivo")
         return True
+
+    def _connect_airpods(self, address: str, why: str) -> None:
+        path = f"{self.scanner.adapter_path}/dev_{address.upper().replace(':', '_')}"
+        self.system_bus.get_object("org.bluez", path).Connect(
+            dbus_interface="org.bluez.Device1", timeout=20,
+            reply_handler=lambda: log.info("AirPods conectados a este equipo (%s)", why),
+            error_handler=lambda e: log.warning("no se pudo conectar los AirPods: %s", e.get_dbus_message()))
 
     def _on_bluez_props(self, iface, changed, _invalidated, path=None) -> None:
         address = self.airpods_address()
@@ -455,8 +480,9 @@ class Daemon:
             return
         if bool(changed["Connected"]):
             log.info("AirPods conectados a este equipo")
+            self.handoff.on_connected()
             return
-        if self.handoff.on_disconnected():
+        if self.handoff.on_disconnected(time.time()):
             paused = self.media.pause_playing()
             self.media.forget()   # no se reanuda solo: como en iOS, al volver le das a play
             log.info("AirPods desconectados (¿se los ha llevado otro dispositivo?): %s",
@@ -471,11 +497,7 @@ class Daemon:
         address = self.airpods_address()
         if address and self.handoff.should_connect(time.time(), self.connected(address), seen, in_ear):
             log.info("empieza a sonar algo en este equipo con los AirPods puestos: los conecto aquí")
-            path = f"{self.scanner.adapter_path}/dev_{address.upper().replace(':', '_')}"
-            self.system_bus.get_object("org.bluez", path).Connect(
-                dbus_interface="org.bluez.Device1", timeout=20,
-                reply_handler=lambda: log.info("AirPods conectados a este equipo (por reproducción)"),
-                error_handler=lambda e: log.warning("no se pudo conectar los AirPods: %s", e.get_dbus_message()))
+            self._connect_airpods(address, "por reproducción")
 
     def _poll_connection(self) -> bool:
         # "Conectado a este equipo" no llega por BLE: se consulta a BlueZ periódicamente.

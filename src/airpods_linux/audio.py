@@ -59,6 +59,11 @@ class PactlSinks:
         except ValueError:
             return None
 
+    def audio_active(self) -> bool:
+        """¿Hay alguna aplicación reproduciendo (sin pausar) en este equipo?"""
+        streams = self._json("list", "sink-inputs")
+        return isinstance(streams, list) and any(not s.get("corked") for s in streams)
+
     def mic_in_use(self) -> bool | None:
         """¿Alguna aplicación graba de un micrófono? (llamada, OBS, notas de voz...).
         Las grabaciones de un .monitor (visualizadores, medidores) no cuentan.
