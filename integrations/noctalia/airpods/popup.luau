@@ -28,44 +28,27 @@ local function connect()
   end, 15000)
 end
 
--- El popup no toma el teclado (keyboard_focus = "none"), así que los ajustes, que
--- tienen un campo de texto, se abren en el panel normal.
-local function openSettings()
-  panel.close()
-  noctalia.runAsync({ "noctalia", "msg", "panel-open", "canoojson/airpods:panel", "settings" }, function() end, 5000)
-end
+local IOS_BLUE = "#0A84FF"
+local ASSETS = noctalia.pluginDir() .. "/assets/"
 
--- Batería de los auriculares bajo su icono: una sola si los dos van igual (como iOS),
--- y si no, izquierdo y derecho por separado.
-local function podsBattery(left, right)
-  if left ~= nil and right ~= nil and left.level == right.level and left.charging == right.charging then
-    return common.batteryIcon("pods-bat", left, { fontSize = 15 })
+-- Una pieza (auricular o caja): ilustración, insignia I/D y batería debajo, como en iOS.
+local function part(key, image, w, h, battery, badge)
+  local level = battery and battery.level
+  local children = {
+    ui.image({ key = key .. "-img", path = ASSETS .. image, width = w, height = h }),
+  }
+  -- Solo los auriculares llevan insignia. Las columnas se alinean por abajo, así que las
+  -- baterías quedan a la misma altura sin necesidad de rellenar el hueco de la caja.
+  if badge then
+    table.insert(children, ui.row({ key = key .. "-badge", width = 18, height = 18, radius = 9, align = "center",
+                                    justify = "center", fill = "on_surface/0.12" }, {
+      ui.label({ text = badge, fontSize = 10, fontWeight = "semibold", color = common.SECONDARY }),
+    }))
   end
-  local function side(key, letter, b)
-    return ui.row({ key = key, gap = 6, align = "center" }, {
-      ui.label({ text = letter, fontSize = 12, color = common.SECONDARY }),
-      common.batteryIcon(key .. "-bat", b, { fontSize = 15 }),
-    })
-  end
-  return ui.column({ key = "pods-bat", gap = 4, align = "center" }, {
-    side("bat-l", "I", left),
-    side("bat-r", "D", right),
-  })
-end
-
-local function device(key, glyph, battery)
-  return ui.column({ key = key, gap = 12, align = "center", flexGrow = 1 }, {
-    ui.glyph({ key = key .. "-img", name = glyph, size = 76, color = "on_surface" }),
-    battery,
-  })
-end
-
--- Botón redondo pequeño (cerrar, ajustes), como los de las tarjetas de iOS.
-local function roundButton(key, glyph, onClick)
-  return ui.row({ key = key, width = 30, height = 30, radius = 15, align = "center", justify = "center",
-                  fill = "on_surface/0.1", onClick = onClick }, {
-    ui.glyph({ name = glyph, size = 15, color = "on_surface/0.7" }),
-  })
+  table.insert(children, common.batteryIcon(key .. "-bat", battery, { showText = false, width = 30, height = 14 }))
+  table.insert(children, ui.label({ key = key .. "-pct", text = level and (level .. " %") or "—", fontSize = 15,
+                                    color = level and "on_surface" or common.SECONDARY }))
+  return ui.column({ key = key, gap = 8, align = "center", justify = "end", width = math.max(w, 64) }, children)
 end
 
 function render()
@@ -78,25 +61,33 @@ function render()
 
   local footer
   if state.connected == true then
-    footer = common.pillButton("footer", "Conectados", { glyph = "check", fill = "on_surface/0.08", color = "on_surface" })
+    footer = common.pillButton("footer", "Listo", { fill = "on_surface/0.12", color = "on_surface",
+                                                    onClick = function() panel.close() end })
   elseif state.connected == false then
-    footer = common.pillButton("footer", connecting and "Conectando…" or "Conectar", { onClick = connect })
+    footer = common.pillButton("footer", connecting and "Conectando…" or "Conectar",
+                               { fill = IOS_BLUE, color = "#FFFFFF", onClick = connect })
   else
     -- connected == nil: los AirPods no están emparejados con este equipo.
     footer = ui.label({ key = "footer", text = "Empareja los AirPods con este equipo para conectarlos",
-                        fontSize = 12, color = common.SECONDARY, textAlign = "center" })
+                        fontSize = 13, color = common.SECONDARY, textAlign = "center" })
   end
 
-  panel.render(ui.column({ padding = 22, gap = 20, fill = "surface", radius = 32, align = "stretch" }, {
+  panel.render(ui.column({ padding = 22, gap = 18, fill = "surface", radius = 36, align = "stretch" }, {
     ui.row({ key = "header", gap = 8, align = "center" }, {
-      roundButton("settings", "settings", openSettings),
-      ui.label({ key = "title", text = state.name or state.model_name or "AirPods", fontSize = 17,
-                 fontWeight = "semibold", flexGrow = 1, textAlign = "center", maxLines = 2 }),
-      roundButton("close", "x", function() panel.close() end),
+      ui.box({ key = "header-spacer", width = 30, height = 30 }),
+      ui.label({ key = "title", text = state.name or state.model_name or "AirPods", fontSize = 18,
+                 fontWeight = "bold", flexGrow = 1, textAlign = "center", maxLines = 1 }),
+      ui.row({ key = "close", width = 30, height = 30, radius = 15, align = "center", justify = "center",
+               fill = "on_surface/0.12", onClick = function() panel.close() end }, {
+        ui.glyph({ name = "x", size = 16, color = "on_surface/0.7" }),
+      }),
     }),
-    ui.row({ key = "devices", gap = 10, align = "end" }, {
-      device("pods", "device-airpods", podsBattery(common.field(state, "left"), common.field(state, "right"))),
-      device("case", "device-airpods-case", common.batteryIcon("case-bat", common.field(state, "case"), { fontSize = 15 })),
+    ui.row({ key = "parts", gap = 4, align = "end", justify = "center" }, {
+      part("left", "pod-left.svg", 54, 94, common.field(state, "left"), "I"),
+      part("right", "pod-right.svg", 54, 94, common.field(state, "right"), "D"),
+      ui.box({ key = "parts-gap", width = 14, height = 1 }),
+      -- Paréntesis: common.field devuelve también la hora, que si no ocuparía `badge`.
+      part("case", "case.svg", 118, 94, (common.field(state, "case"))),
     }),
     footer,
   }))
