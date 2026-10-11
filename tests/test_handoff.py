@@ -76,7 +76,8 @@ def test_initial_idle_after_handoff_does_not_count():
 
 
 def test_iphone_sequence_seen_live():
-    # Lo visto con un iPhone: 0x0d, 0x09 y 0x08 al parar (en reposo con el iPhone).
+    # Lo visto con un iPhone: 0x0d al cambiar de contenido, 0x09 reproduciendo (puede
+    # durar mucho: no es "parado") y 0x08 en reposo.
     h = HandoffLogic()
     h.note_default_sink(True)
     h.on_disconnected(100)
@@ -86,3 +87,15 @@ def test_iphone_sequence_seen_live():
     h.note_audio_state(AUDIO_IDLE_OTHER, 136)
     assert not h.should_return(137, False, 137, True, True)
     assert h.should_return(136 + IDLE_BEFORE_RETURN_S, False, 139, True, True)
+
+
+def test_long_0x09_is_still_playing():
+    h = HandoffLogic()
+    h.note_default_sink(True)
+    h.on_disconnected(0)
+    h.note_audio_state(0x09, 10)
+    for t in (20, 600, 1140):                   # 19 min reproduciendo en el iPhone
+        h.note_audio_state(0x09, t)
+        assert not h.should_return(t, False, t, True, True)
+    h.note_audio_state(AUDIO_IDLE_OTHER, 1141)
+    assert h.should_return(1141 + IDLE_BEFORE_RETURN_S, False, 1144, True, True)

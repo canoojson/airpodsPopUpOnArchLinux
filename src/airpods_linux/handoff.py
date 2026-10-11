@@ -20,14 +20,15 @@ RETURN_WINDOW_S = 3600   # pasado este tiempo ya no se intenta devolverlos
 
 # Byte 10 del anuncio de los AirPods: estado del audio con su dispositivo. Base de
 # LibrePods, completada con lo visto en unos AirPods Pro 3 (2026-10-11): en reposo es
-# 0x04 con el PC y 0x08 con el iPhone; 0x0d y 0x09 aparecen al empezar y al terminar.
+# 0x04 con el PC y 0x08 con el iPhone. 0x09 es otra forma de "reproduciendo" (estuvo
+# 19 min así con el iPhone sonando) y 0x0d, la transición entre contenidos.
 AUDIO_DISCONNECTED, AUDIO_IDLE, AUDIO_MUSIC, AUDIO_CALL, AUDIO_RINGING = 0x00, 0x04, 0x05, 0x06, 0x07
-AUDIO_IDLE_OTHER = 0x08
-AUDIO_PLAYING = {AUDIO_MUSIC, AUDIO_CALL, AUDIO_RINGING}
+AUDIO_IDLE_OTHER, AUDIO_PLAYING_OTHER = 0x08, 0x09
+AUDIO_PLAYING = {AUDIO_MUSIC, AUDIO_CALL, AUDIO_RINGING, AUDIO_PLAYING_OTHER}
 AUDIO_STOPPED = {AUDIO_DISCONNECTED, AUDIO_IDLE, AUDIO_IDLE_OTHER}   # el resto: transiciones
 AUDIO_STATE_NAMES = {AUDIO_DISCONNECTED: "sin conexión", AUDIO_IDLE: "en reposo", AUDIO_IDLE_OTHER: "en reposo",
                      AUDIO_MUSIC: "reproduciendo", AUDIO_CALL: "en llamada", AUDIO_RINGING: "sonando",
-                     0x09: "terminando", 0x0D: "cambiando"}
+                     AUDIO_PLAYING_OTHER: "reproduciendo", 0x0D: "cambiando"}
 
 
 @dataclass
