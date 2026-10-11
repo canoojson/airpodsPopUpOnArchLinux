@@ -1,4 +1,4 @@
-from airpods_linux.handoff import (AUDIO_IDLE, AUDIO_MUSIC, CONNECT_COOLDOWN_S, IDLE_BEFORE_RETURN_S,
+from airpods_linux.handoff import (AUDIO_IDLE, AUDIO_IDLE_OTHER, AUDIO_MUSIC, CONNECT_COOLDOWN_S, IDLE_BEFORE_RETURN_S,
                                    NEARBY_S, HandoffLogic)
 
 
@@ -62,3 +62,27 @@ def test_no_return_after_reconnecting():
     h.on_connected()
     h.note_audio_state(AUDIO_IDLE, 100)
     assert not h.should_return(110, False, 110, True, True)
+
+
+def test_initial_idle_after_handoff_does_not_count():
+    h = HandoffLogic()
+    h.note_default_sink(True)
+    h.on_disconnected(100)
+    h.note_audio_state(AUDIO_IDLE, 100)        # el iPhone aún no ha empezado a reproducir
+    assert not h.should_return(110, False, 110, True, True)
+    h.note_audio_state(AUDIO_MUSIC, 111)
+    h.note_audio_state(AUDIO_IDLE, 120)
+    assert h.should_return(120 + IDLE_BEFORE_RETURN_S, False, 123, True, True)
+
+
+def test_iphone_sequence_seen_live():
+    # Lo visto con un iPhone: 0x0d, 0x09 y 0x08 al parar (en reposo con el iPhone).
+    h = HandoffLogic()
+    h.note_default_sink(True)
+    h.on_disconnected(100)
+    for t, st in ((101, 0x0D), (101.5, AUDIO_IDLE), (103, AUDIO_MUSIC), (133, 0x0D), (134, 0x09)):
+        h.note_audio_state(st, t)
+        assert not h.should_return(t, False, t, True, True)
+    h.note_audio_state(AUDIO_IDLE_OTHER, 136)
+    assert not h.should_return(137, False, 137, True, True)
+    assert h.should_return(136 + IDLE_BEFORE_RETURN_S, False, 139, True, True)
