@@ -35,7 +35,8 @@ from .fsutil import atomic_write_text
 from .audio import RESTORE_FROM, AudioRouter, CallGuard, PactlSinks, VolumeDucker, airpods_sink_prefix
 from .bluez import get_alias, paired_devices, select_airpods
 from .ear import PAUSE, RESUME, EarPauseLogic
-from .media import MediaController
+from .handoff import HandoffLogic
+from .media import PLAYER_IFACE, MediaController
 from .events import CLOSED, OPENED, CaseEventDetector
 from .proximity import MODEL_NAMES
 from .state import STATE_PATH, StateStore, runtime_status_path
@@ -254,6 +255,13 @@ class Daemon:
         log.info("modo de escaneo: %s", "pasivo (AdvertisementMonitor)" if self.scanner.passive
                  else f"ventanas {args.on}/{args.off} s")
         self._watch_helper()
+        self.handoff = HandoffLogic()
+        # Conexión y desconexión al instante (el sondeo de _poll_connection va cada 5 s).
+        self.system_bus.add_signal_receiver(self._on_bluez_props, "PropertiesChanged",
+                                            "org.freedesktop.DBus.Properties", "org.bluez", path_keyword="path")
+        # Algo empieza a sonar en este equipo (MPRIS).
+        self.session_bus.add_signal_receiver(self._on_mpris_props, "PropertiesChanged",
+                                             "org.freedesktop.DBus.Properties", None, "/org/mpris/MediaPlayer2")
 
     def airpods_address(self) -> str | None:
         """MAC de los AirPods emparejados: la de las claves o, sin claves, la que encuentre BlueZ."""
@@ -429,6 +437,45 @@ class Daemon:
         self.audio.prefix = airpods_sink_prefix(address)
         self.audio.tick(time.time(), self.ear.count)
         return True
+
+    # --- cambio entre el iPhone y este equipo (handoff.py) ------------------------
+
+    def _handoff_tick(self) -> bool:
+        """Cada 2 s: ¿sale el audio de este equipo por los AirPods?"""
+        address = self.airpods_address()
+        if address and self.connected(address) is True:
+            default = self.sinks.default() or ""
+            self.handoff.note_default_sink(default.startswith(airpods_sink_prefix(address)))
+        return True
+
+    def _on_bluez_props(self, iface, changed, _invalidated, path=None) -> None:
+        address = self.airpods_address()
+        if (iface != "org.bluez.Device1" or "Connected" not in changed or not address
+                or not str(path).endswith("dev_" + address.upper().replace(":", "_"))):
+            return
+        if bool(changed["Connected"]):
+            log.info("AirPods conectados a este equipo")
+            return
+        if self.handoff.on_disconnected():
+            paused = self.media.pause_playing()
+            self.media.forget()   # no se reanuda solo: como en iOS, al volver le das a play
+            log.info("AirPods desconectados (¿se los ha llevado otro dispositivo?): %s",
+                     f"pausado {', '.join(p.rsplit('.', 1)[-1] for p in paused)}" if paused else "nada sonando")
+
+    def _on_mpris_props(self, iface, changed, _invalidated) -> None:
+        if iface != PLAYER_IFACE or str(changed.get("PlaybackStatus", "")) != "Playing":
+            return
+        f_left, f_right = self.store.get("left_in_ear"), self.store.get("right_in_ear")
+        seen = max((f["ts"] for f in (f_left, f_right) if f), default=None)
+        in_ear = bool((f_left and f_left["value"]) or (f_right and f_right["value"]))
+        address = self.airpods_address()
+        if address and self.handoff.should_connect(time.time(), self.connected(address), seen, in_ear):
+            log.info("empieza a sonar algo en este equipo con los AirPods puestos: los conecto aquí")
+            path = f"{self.scanner.adapter_path}/dev_{address.upper().replace(':', '_')}"
+            self.system_bus.get_object("org.bluez", path).Connect(
+                dbus_interface="org.bluez.Device1", timeout=20,
+                reply_handler=lambda: log.info("AirPods conectados a este equipo (por reproducción)"),
+                error_handler=lambda e: log.warning("no se pudo conectar los AirPods: %s", e.get_dbus_message()))
 
     def _poll_connection(self) -> bool:
         # "Conectado a este equipo" no llega por BLE: se consulta a BlueZ periódicamente.
@@ -702,6 +749,7 @@ class Daemon:
         GLib.timeout_add_seconds(5, self._poll_connection)
         GLib.timeout_add_seconds(2, self._audio_tick)
         GLib.timeout_add_seconds(2, self._call_tick)
+        GLib.timeout_add_seconds(2, self._handoff_tick)
         # Primera comprobación al minuto de arrancar (con la red ya lista) y luego cada día.
         GLib.timeout_add_seconds(60, lambda: (self._periodic_update_check(), False)[1])
         GLib.timeout_add_seconds(UPDATE_INTERVAL_S, self._periodic_update_check)

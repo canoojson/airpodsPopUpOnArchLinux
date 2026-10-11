@@ -30,6 +30,7 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 - **Sin escaneo continuo:** usa el monitor pasivo de anuncios de BlueZ, que no interfiere con tus otros dispositivos Bluetooth.
 - `airpodsctl` para la terminal y una API D-Bus para integrarlo en otros widgets.
 - **El audio pasa a los AirPods solo cuando te los pones**: aunque se conecten al abrir la caja, el sonido sigue por donde estaba hasta que te pones uno, y vuelve al quitártelos.
+- **Cambio entre el iPhone y el PC**: al dar play en uno, los AirPods pasan a él y el otro se pausa.
 - **Pausa al quitarte un auricular** (cualquiera, también con el otro en la caja) y reanuda al volver a ponértelo, como en iOS.
 - **Modo de escucha y ajustes de los AirPods** (cancelación de ruido, adaptativo, ambiente, detección de conversación…) con su propia conexión AAP, sin depender de airpods-helper. Al hablar, baja el volumen como iOS.
 - **Aviso de batería baja** al 20 % y al 10 %, y **historial** con gráfica de las últimas 24 h y el tiempo restante estimado.
@@ -317,6 +318,13 @@ Al abrir la caja, los AirPods se conectan solos al último dispositivo (es cosa 
 - Al **quitarte el último** o guardarlo en la caja, vuelve a la salida anterior.
 
 Solo actúa en esos momentos, así que si eliges otra salida a mano, se respeta. Cambia la salida por defecto con `pactl` (paquete `libpulse`, que instala `pipewire-pulse`; sin él esta función se desactiva sola): las aplicaciones la siguen salvo que tengan una salida fijada (ver [conflictos de audio](#antes-de-instalar-conflictos-de-audio-conocidos)). Se desactiva en el ⚙ o con `airpodsctl config set audio_follow_ear false`.
+
+### Cambiar entre el iPhone y el PC
+
+Los AirPods solo mandan el audio a un dispositivo a la vez. `airpodsd` hace el cambio como iOS entre dispositivos de Apple:
+
+- **Le das a play en el iPhone** y este se lleva los AirPods: el PC pausa lo que sonaba por ellos (y el sonido no salta a los altavoces). Al volver, dale a play: no se reanuda solo.
+- **Le das a play en el PC** con los AirPods puestos pero conectados a otro dispositivo: `airpodsd` los conecta a este equipo.
 
 ### Ajustes (⚙)
 
