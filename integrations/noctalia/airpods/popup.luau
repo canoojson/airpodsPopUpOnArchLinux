@@ -1,5 +1,5 @@
 --!nonstrict
--- AirPods popup, estilo iOS: lo abre airpodsd al abrir la caja con los auriculares dentro
+-- Popup de los AirPods con el aspecto de la tarjeta de iOS: lo abre airpodsd al abrir la caja con los auriculares dentro
 --   noctalia msg panel-open canoojson/airpods:popup '<json>'
 -- y lo actualiza mientras está abierto con
 --   noctalia msg plugin canoojson/airpods:popup all state '<json>'
@@ -35,6 +35,39 @@ local function openSettings()
   noctalia.runAsync({ "noctalia", "msg", "panel-open", "canoojson/airpods:panel", "settings" }, function() end, 5000)
 end
 
+-- Batería de los auriculares bajo su icono: una sola si los dos van igual (como iOS),
+-- y si no, izquierdo y derecho por separado.
+local function podsBattery(left, right)
+  if left ~= nil and right ~= nil and left.level == right.level and left.charging == right.charging then
+    return common.batteryIcon("pods-bat", left, { fontSize = 15 })
+  end
+  local function side(key, letter, b)
+    return ui.row({ key = key, gap = 6, align = "center" }, {
+      ui.label({ text = letter, fontSize = 12, color = common.SECONDARY }),
+      common.batteryIcon(key .. "-bat", b, { fontSize = 15 }),
+    })
+  end
+  return ui.column({ key = "pods-bat", gap = 4, align = "center" }, {
+    side("bat-l", "I", left),
+    side("bat-r", "D", right),
+  })
+end
+
+local function device(key, glyph, battery)
+  return ui.column({ key = key, gap = 12, align = "center", flexGrow = 1 }, {
+    ui.glyph({ key = key .. "-img", name = glyph, size = 76, color = "on_surface" }),
+    battery,
+  })
+end
+
+-- Botón redondo pequeño (cerrar, ajustes), como los de las tarjetas de iOS.
+local function roundButton(key, glyph, onClick)
+  return ui.row({ key = key, width = 30, height = 30, radius = 15, align = "center", justify = "center",
+                  fill = "on_surface/0.1", onClick = onClick }, {
+    ui.glyph({ name = glyph, size = 15, color = "on_surface/0.7" }),
+  })
+end
+
 function render()
   if state == nil then
     panel.render(ui.column({ padding = 20, align = "center", justify = "center" }, {
@@ -45,30 +78,25 @@ function render()
 
   local footer
   if state.connected == true then
-    footer = ui.row({ key = "footer", gap = 6, align = "center", justify = "center" }, {
-      ui.glyph({ name = "bluetooth-connected", size = 14, color = "primary" }),
-      ui.label({ text = "Conectados a este equipo", fontSize = 12, color = "on_surface/0.7" }),
-    })
+    footer = common.pillButton("footer", "Conectados", { glyph = "check", fill = "on_surface/0.08", color = "on_surface" })
   elseif state.connected == false then
-    footer = ui.button({ key = "footer", text = connecting and "Conectando…" or "Conectar",
-                         variant = "primary", onClick = connect })
+    footer = common.pillButton("footer", connecting and "Conectando…" or "Conectar", { onClick = connect })
   else
     -- connected == nil: los AirPods no están emparejados con este equipo.
     footer = ui.label({ key = "footer", text = "Empareja los AirPods con este equipo para conectarlos",
-                        fontSize = 12, color = "on_surface/0.6" })
+                        fontSize = 12, color = common.SECONDARY, textAlign = "center" })
   end
 
-  panel.render(ui.column({ padding = 16, gap = 14, fill = "surface", radius = 22 }, {
-    ui.row({ key = "header", gap = 10, align = "center" }, {
-      ui.glyph({ name = "device-airpods", size = 20, color = "primary" }),
-      ui.label({ text = state.name or state.model_name or "AirPods", fontSize = 16, fontWeight = "bold", flexGrow = 1 }),
-      ui.button({ glyph = "settings", variant = "ghost", tooltip = "Ajustes", onClick = openSettings }),
-      ui.button({ glyph = "x", variant = "ghost", onClick = function() panel.close() end }),
+  panel.render(ui.column({ padding = 22, gap = 20, fill = "surface", radius = 32, align = "stretch" }, {
+    ui.row({ key = "header", gap = 8, align = "center" }, {
+      roundButton("settings", "settings", openSettings),
+      ui.label({ key = "title", text = state.name or state.model_name or "AirPods", fontSize = 17,
+                 fontWeight = "semibold", flexGrow = 1, textAlign = "center", maxLines = 2 }),
+      roundButton("close", "x", function() panel.close() end),
     }),
-    ui.row({ key = "cards", gap = 10 }, {
-      common.card("left", "device-airpods", "Izquierdo", common.field(state, "left")),
-      common.card("right", "device-airpods", "Derecho", common.field(state, "right")),
-      common.card("case", "device-airpods-case", "Caja", common.field(state, "case")),
+    ui.row({ key = "devices", gap = 10, align = "end" }, {
+      device("pods", "device-airpods", podsBattery(common.field(state, "left"), common.field(state, "right"))),
+      device("case", "device-airpods-case", common.batteryIcon("case-bat", common.field(state, "case"), { fontSize = 15 })),
     }),
     footer,
   }))

@@ -111,90 +111,106 @@ function M.render(status, opts)
   local device = (aap.owner == "airpodsd" and aap.connected and aap.settings) or nil
 
   local function toggleRow(key, title, subtitle, checked, onToggle)
-    return ui.row({ key = key, gap = 10, align = "center" }, {
-      ui.column({ key = key .. "-text", gap = 2, flexGrow = 1 }, {
-        ui.label({ text = title, fontSize = 13 }),
-        ui.label({ text = subtitle, fontSize = 11, color = "on_surface/0.55" }),
-      }),
-      ui.toggle({ key = key .. "-toggle", checked = checked, enabled = busy == nil,
-                  onChange = function(v) onToggle(v == "true") end }),
+    return common.listRow(key, {
+      title = title, subtitle = subtitle,
+      trailing = ui.toggle({ key = key .. "-toggle", checked = checked, enabled = busy == nil,
+                             onChange = function(v) onToggle(v == "true") end }),
     })
   end
 
-  local header = ui.row({ key = "s-header", gap = 8, align = "center" }, {
-    ui.button({ key = "s-back", glyph = "arrow-left", variant = "ghost", tooltip = "Volver", onClick = opts.back }),
-    ui.label({ text = "Ajustes", fontSize = 16, fontWeight = "bold", flexGrow = 1 }),
+  -- Fila de acción en color, como "Buscar actualizaciones" en Ajustes de iOS.
+  local function actionRow(key, title, onClick, enabled)
+    return common.listRow(key, { title = title, titleColor = enabled and "primary" or common.SECONDARY,
+                                 onClick = enabled and onClick or nil })
+  end
+
+  -- "‹ AirPods" para volver, con el título grande debajo, como en iOS.
+  local header = ui.column({ key = "s-header", gap = 6 }, {
+    ui.row({ key = "s-back", gap = 2, align = "center", onClick = opts.back }, {
+      ui.glyph({ name = "chevron-left", size = 18, color = "primary" }),
+      ui.label({ text = "AirPods", fontSize = 14, color = "primary" }),
+    }),
+    ui.label({ text = "Ajustes", fontSize = 22, fontWeight = "bold" }),
   })
 
   local children = {
-    ui.label({ key = "s-name-title", text = "Nombre del dispositivo", fontSize = 12, color = "on_surface/0.7" }),
-    ui.row({ key = "s-name", gap = 8, align = "center" }, {
-      ui.input({ key = "s-name-input", value = currentName, placeholder = (status and status.model_name) or "AirPods",
-                 submitOnEnter = true, flexGrow = 1, enabled = status ~= nil and status.address ~= nil,
-                 onChange = function(v) draftName = v end,
-                 onSubmit = function(v) draftName = v; saveName(status, refresh, rerender) end }),
-      ui.button({ key = "s-name-save", glyph = busy == "name" and "refresh" or "check", variant = "primary",
-                  tooltip = "Guardar nombre", enabled = draftName ~= nil and busy == nil,
-                  onClick = function() saveName(status, refresh, rerender) end }),
+    common.sectionHeader("s-name-h", "Nombre"),
+    common.group("s-name-g", {
+      ui.row({ key = "s-name", gap = 8, align = "center", paddingH = 10, paddingV = 8 }, {
+        ui.input({ key = "s-name-input", value = currentName, placeholder = (status and status.model_name) or "AirPods",
+                   submitOnEnter = true, flexGrow = 1, enabled = status ~= nil and status.address ~= nil,
+                   onChange = function(v) draftName = v end,
+                   onSubmit = function(v) draftName = v; saveName(status, refresh, rerender) end }),
+        ui.row({ key = "s-name-save", width = 30, height = 30, radius = 15, align = "center", justify = "center",
+                 fill = (draftName ~= nil and busy == nil) and "primary" or "on_surface/0.1",
+                 onClick = function() if draftName ~= nil and busy == nil then saveName(status, refresh, rerender) end end }, {
+          ui.glyph({ name = busy == "name" and "refresh" or "check", size = 15,
+                     color = (draftName ~= nil and busy == nil) and "on_primary" or common.SECONDARY }),
+        }),
+      }),
+    }),
+    common.sectionFooter("s-name-f", "Es el nombre en este equipo; tu iPhone sigue viendo el suyo."),
+
+    common.sectionHeader("s-audio-h", "Audio"),
+    common.group("s-audio-g", {
+      toggleRow("s-route", "Pasar el audio al ponértelos", "Si están en la caja, sigue sonando por donde estaba",
+                audio.follow_ear ~= false, function(v) setOption(status, "audio_follow_ear", v, refresh, rerender) end),
+      toggleRow("s-pause", "Pausar al quitarte uno", "También con uno en la caja y otro puesto",
+                ear.pause ~= false, function(v) setOption(status, "ear_pause", v, refresh, rerender) end),
+      toggleRow("s-resume", "Reanudar al volver a ponértelo", "Si vuelve a la oreja en menos de 2 min",
+                ear.resume ~= false, function(v) setOption(status, "ear_resume", v, refresh, rerender) end),
+      toggleRow("s-duck", "Bajar el volumen al hablar", "Con la detección de conversación activada",
+                aap.conversation_duck ~= false, function(v) setOption(status, "conversation_duck", v, refresh, rerender) end),
     }),
 
-    toggleRow("s-route", "Audio a los AirPods solo al ponértelos", "Si están en la caja, sigue sonando por donde estaba",
-              audio.follow_ear ~= false, function(v) setOption(status, "audio_follow_ear", v, refresh, rerender) end),
-    toggleRow("s-pause", "Pausar al quitarte un auricular", "También con uno en la caja y otro puesto",
-              ear.pause ~= false, function(v) setOption(status, "ear_pause", v, refresh, rerender) end),
-    toggleRow("s-resume", "Reanudar al volver a ponértelo", "Si vuelve a la oreja en menos de 2 min",
-              ear.resume ~= false, function(v) setOption(status, "ear_resume", v, refresh, rerender) end),
-    toggleRow("s-lowbat", "Avisar con batería baja", "Al 20 % y al 10 %, una vez por carga",
-              alerts.low_battery ~= false, function(v) setOption(status, "low_battery_alert", v, refresh, rerender) end),
-    toggleRow("s-duck", "Bajar el volumen al hablar", "Con la detección de conversación activada",
-              aap.conversation_duck ~= false, function(v) setOption(status, "conversation_duck", v, refresh, rerender) end),
-
-    ui.row({ key = "s-auto", gap = 10, align = "center" }, {
-      ui.column({ key = "s-auto-text", gap = 2, flexGrow = 1 }, {
-        ui.label({ text = "Buscar actualizaciones automáticamente", fontSize = 13 }),
-        ui.label({ text = "Consulta GitHub una vez al día", fontSize = 11, color = "on_surface/0.55" }),
-      }),
-      ui.toggle({ key = "s-auto-toggle", checked = upd.enabled == true, enabled = busy == nil,
-                  onChange = function(v) setOption(status, "update_check", v == "true", refresh, rerender) end }),
+    common.sectionHeader("s-bat-h", "Batería"),
+    common.group("s-bat-g", {
+      toggleRow("s-lowbat", "Avisar con batería baja", "Al 20 % y al 10 %, una vez por carga",
+                alerts.low_battery ~= false, function(v) setOption(status, "low_battery_alert", v, refresh, rerender) end),
     }),
   }
 
-  if device ~= nil then
-    table.insert(children, ui.label({ key = "s-dev-title", text = "AirPods", fontSize = 12, color = "on_surface/0.7" }))
+  if device ~= nil and (device.one_bud_anc ~= nil or device.volume_swipe ~= nil) then
+    local rows = {}
     if device.one_bud_anc ~= nil then
-      table.insert(children, toggleRow("s-onebud", "Cancelación de ruido con un auricular", "Mantener el modo con uno solo puesto",
-                                       device.one_bud_anc == true, function(v) setFeature(status, "one_bud_anc", v, refresh, rerender) end))
+      table.insert(rows, toggleRow("s-onebud", "Cancelación con un auricular", "Mantener el modo con uno solo puesto",
+                                   device.one_bud_anc == true, function(v) setFeature(status, "one_bud_anc", v, refresh, rerender) end))
     end
     if device.volume_swipe ~= nil then
-      table.insert(children, toggleRow("s-swipe", "Volumen deslizando en el tallo", "Desliza arriba o abajo en el sensor",
-                                       device.volume_swipe == true, function(v) setFeature(status, "volume_swipe", v, refresh, rerender) end))
+      table.insert(rows, toggleRow("s-swipe", "Volumen deslizando en el tallo", "Desliza arriba o abajo en el sensor",
+                                   device.volume_swipe == true, function(v) setFeature(status, "volume_swipe", v, refresh, rerender) end))
     end
+    table.insert(children, common.sectionHeader("s-dev-h", "AirPods"))
+    table.insert(children, common.group("s-dev-g", rows))
   end
 
-  local actions = {
-    ui.button({ key = "s-check", text = busy == "check" and "Buscando…" or "Buscar actualizaciones",
-                glyph = "refresh", enabled = busy == nil, flexGrow = 1,
-                onClick = function() checkNow(status, common, rerender) end }),
+  local updRows = {
+    toggleRow("s-auto", "Buscar automáticamente", "Consulta GitHub una vez al día",
+              upd.enabled == true, function(v) setOption(status, "update_check", v, refresh, rerender) end),
+    actionRow("s-check", busy == "check" and "Buscando…" or "Buscar actualizaciones",
+              function() checkNow(status, common, rerender) end, busy == nil),
   }
   if available and managed then
-    table.insert(actions, ui.button({ key = "s-update", text = busy == "update" and "Actualizando…" or ("Actualizar a " .. latest),
-                                      glyph = "download", variant = "primary", enabled = busy == nil,
-                                      onClick = function() updateNow(status, refresh, rerender) end }))
+    table.insert(updRows, actionRow("s-update", busy == "update" and "Actualizando…" or ("Actualizar a la versión " .. latest),
+                                    function() updateNow(status, refresh, rerender) end, busy == nil))
   end
-  table.insert(children, ui.row({ key = "s-actions", gap = 8 }, actions))
+  table.insert(children, common.sectionHeader("s-upd-h", "Actualizaciones"))
+  table.insert(children, common.group("s-upd-g", updRows))
 
-  if available and not managed then
-    table.insert(children, ui.label({ key = "s-dev", text = "Instalación de desarrollo: actualiza con git pull",
-                                      fontSize = 11, color = "on_surface/0.6" }))
-  end
+  local footer = nil
   if message ~= nil then
-    table.insert(children, ui.label({ key = "s-msg", text = message.text, fontSize = 12, color = message.color, maxLines = 2 }))
+    footer = { text = message.text, color = message.color }
+  elseif available and not managed then
+    footer = { text = (upd.install == "package") and "Instalado como paquete: actualiza con tu gestor de paquetes."
+                      or "Instalación de desarrollo: actualiza con git pull." }
   end
+  if footer then table.insert(children, common.sectionFooter("s-upd-f", footer.text, footer.color)) end
   table.insert(children, ui.label({ key = "s-version", text = "AirPods Linux " .. ((status and status.version) or "?"),
-                                    fontSize = 11, color = "on_surface/0.45" }))
-  return ui.column({ padding = 16, gap = 12, fill = "surface", radius = 16, flexGrow = 1 }, {
+                                    fontSize = 11, color = "on_surface/0.4", textAlign = "center" }))
+
+  return ui.column({ padding = 18, gap = 12, fill = "surface", radius = 24, flexGrow = 1 }, {
     header,
-    ui.scroll({ key = "s-scroll", flexGrow = 1 }, { common.scrollBody("s", 12, children) }),
+    ui.scroll({ key = "s-scroll", flexGrow = 1 }, { common.scrollBody("s", 8, children) }),
   })
 end
 

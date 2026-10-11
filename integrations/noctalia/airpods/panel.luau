@@ -1,7 +1,7 @@
 --!nonstrict
--- Panel desplegable: batería de cada auricular y de la caja (airpodsd, también con la
--- caja cerrada), gráfica de las últimas 24 h y, con los AirPods conectados, un selector
--- de modo de escucha al estilo de iOS. El modo va por la conexión AAP de airpodsd o,
+-- Panel desplegable con aspecto de iOS: batería de cada auricular y de la caja
+-- (airpodsd, también con la caja cerrada), control de ruido, detección de conversación
+-- y gráfica de las últimas 24 h. El modo va por la conexión AAP de airpodsd o,
 -- si la tiene airpods-helper, por airpods-cli.
 
 local common = require("./lib/common.luau")
@@ -157,24 +157,33 @@ local function connect()
   end, 15000)
 end
 
+-- Botón redondo pequeño (ajustes), como los de las tarjetas de iOS.
+local function roundButton(key, glyph, onClick)
+  return ui.row({ key = key, width = 30, height = 30, radius = 15, align = "center", justify = "center",
+                  fill = "on_surface/0.1", onClick = onClick }, {
+    ui.glyph({ name = glyph, size = 15, color = "on_surface/0.7" }),
+  })
+end
+
+-- Control de ruido como en el Centro de control de iOS: un botón redondo por modo.
 local function ancSection(children)
   local modes = availableModes()
   if #modes == 0 or not (ownAap() or (anc and anc.connected)) then return end
   local current = pendingMode or currentMode()
   -- flexGrow no reparte el ancho de una fila aquí: se calcula a mano.
-  local segmentWidth = math.floor((TRACK_WIDTH - 8 - 4 * (#modes - 1)) / #modes)
-  local segments = {}
+  local cellWidth = math.floor((TRACK_WIDTH - 28) / #modes)
+  local cells = {}
   for _, m in ipairs(modes) do
     local selected = (m == current)
-    table.insert(segments, ui.column({
-      key = "seg-" .. m, width = segmentWidth, gap = 6, paddingV = 10, paddingH = 4, radius = 12, align = "center",
-      -- Relleno transparente explícito: nil conservaría el resaltado anterior.
-      fill = selected and "primary/0.18" or "primary/0",
-      onClick = function() selectMode(m) end,
-    }, {
-      ui.glyph({ name = MODE_GLYPHS[m], size = 20, color = selected and "primary" or "on_surface/0.7" }),
-      ui.label({ text = MODE_LABELS[m], fontSize = 11, maxLines = 2, maxWidth = segmentWidth - 8,
-                 color = selected and "primary" or "on_surface/0.7", fontWeight = selected and "bold" or "normal" }),
+    table.insert(cells, ui.column({ key = "mode-" .. m, width = cellWidth, gap = 8, align = "center",
+                                    onClick = function() selectMode(m) end }, {
+      ui.row({ key = "mode-" .. m .. "-c", width = 54, height = 54, radius = 27, align = "center", justify = "center",
+               -- Relleno explícito también sin seleccionar: nil conservaría el anterior.
+               fill = selected and "primary" or "on_surface/0.1" }, {
+        ui.glyph({ name = MODE_GLYPHS[m], size = 24, color = selected and "on_primary" or "on_surface" }),
+      }),
+      ui.label({ text = MODE_LABELS[m], fontSize = 11, maxLines = 2, maxWidth = cellWidth - 4, textAlign = "center",
+                 color = selected and "on_surface" or common.SECONDARY, fontWeight = selected and "semibold" or "normal" }),
     }))
   end
   local earsOut
@@ -183,12 +192,14 @@ local function ancSection(children)
   else
     earsOut = anc.ear_left == false and anc.ear_right == false
   end
-  table.insert(children, ui.row({ key = "anc-title", align = "center" }, {
-    ui.label({ text = "Modo de escucha", fontSize = 13, color = "on_surface/0.7", flexGrow = 1 }),
-    -- Los AirPods ignoran el cambio de modo si no hay ningún auricular puesto.
-    ui.label({ text = earsOut and "Ponte un auricular para cambiarlo" or "", fontSize = 11, color = "on_surface/0.5" }),
+  table.insert(children, common.sectionHeader("anc-title", "Control de ruido"))
+  table.insert(children, ui.column({ key = "anc-card", radius = 14, fill = common.CARD, paddingV = 14, paddingH = 14 }, {
+    ui.row({ key = "anc-cells", gap = 0 }, cells),
   }))
-  table.insert(children, ui.row({ key = "anc-segments", gap = 4, padding = 4, radius = 16, fill = "surface_variant/0.6" }, segments))
+  -- Los AirPods ignoran el cambio de modo si no hay ningún auricular puesto.
+  if earsOut then
+    table.insert(children, common.sectionFooter("anc-hint", "Ponte un auricular para cambiar el modo."))
+  end
 end
 
 local caBusy = false
@@ -197,59 +208,58 @@ local caBusy = false
 local function conversationSection(children)
   local ca = aapSetting("conversational_awareness")
   if not ownAap() or ca == nil then return end
-  table.insert(children, ui.row({ key = "ca", gap = 10, align = "center" }, {
-    ui.column({ key = "ca-text", gap = 2, flexGrow = 1 }, {
-      ui.label({ text = "Detección de conversación", fontSize = 13 }),
-      ui.label({ text = "Baja el volumen y deja pasar el sonido al hablar", fontSize = 11, color = "on_surface/0.55" }),
+  table.insert(children, common.group("ca-group", {
+    common.listRow("ca", {
+      glyph = "message-circle", title = "Detección de conversación",
+      subtitle = "Baja el volumen y deja pasar el sonido al hablar",
+      trailing = ui.toggle({ key = "ca-toggle", checked = ca == true, enabled = not caBusy, onChange = function(v)
+        caBusy = true
+        render()
+        noctalia.runAsync({ ctl(), "feature", "conversational_awareness", v == "true" and "on" or "off" }, function(result)
+          caBusy = false
+          if result.exitCode ~= 0 then noctalia.notifyError("AirPods", "No se pudo cambiar la detección de conversación") end
+          refresh()
+        end, 8000)
+      end }),
     }),
-    ui.toggle({ key = "ca-toggle", checked = ca == true, enabled = not caBusy, onChange = function(v)
-      caBusy = true
-      render()
-      noctalia.runAsync({ ctl(), "feature", "conversational_awareness", v == "true" and "on" or "off" }, function(result)
-        caBusy = false
-        if result.exitCode ~= 0 then noctalia.notifyError("AirPods", "No se pudo cambiar la detección de conversación") end
-        refresh()
-      end, 8000)
-    end }),
   }))
 end
-
-local CHART_HEIGHT = 34
 
 local function fmtMinutes(m)
   if m >= 60 then return string.format("%d h %02d min", math.floor(m / 60), m % 60) end
   return m .. " min"
 end
 
--- Gráfica de las últimas horas: el auricular más bajo en cada intervalo.
+-- Gráfica de las últimas horas (el auricular más bajo en cada intervalo), como la de
+-- Ajustes → Batería de iOS. Los huecos sin datos repiten el último valor conocido.
 local function historySection(children)
   local h = status.history
   if h == nil or h.series == nil or h.buckets == nil then return end
   local left, right = h.series.left or {}, h.series.right or {}
-  local n = h.buckets
-  local gap = 2
-  local barW = math.max(2, math.floor((TRACK_WIDTH - gap * (n - 1)) / n))
-  local bars, any = {}, false
-  for i = 1, n do
+  local values, last, any = {}, nil, false
+  for i = 1, h.buckets do
     local l, r = left[i], right[i]
     local v = (l ~= nil and r ~= nil) and math.min(l, r) or (l or r)
-    if v ~= nil then
-      any = true
-      table.insert(bars, ui.box({ key = "h" .. i, width = barW, height = math.max(2, math.floor(v / 100 * CHART_HEIGHT + 0.5)),
-                                  radius = 1, fill = v <= common.LOW_BATTERY and "error/0.8" or "primary/0.7" }))
-    else
-      table.insert(bars, ui.box({ key = "h" .. i, width = barW, height = 2, radius = 1, fill = "on_surface/0.08" }))
-    end
+    if v ~= nil then any = true; last = v end
+    values[i] = last
   end
   if not any then return end
+  local first = nil
+  for i = 1, h.buckets do if values[i] ~= nil then first = values[i]; break end end
+  for i = 1, h.buckets do values[i] = (values[i] or first) / 100 end
   local est = h.remaining_min or {}
   local remaining = nil
   if est.left ~= nil and est.right ~= nil then remaining = math.min(est.left, est.right) else remaining = est.left or est.right end
-  table.insert(children, ui.row({ key = "hist-title", align = "center" }, {
-    ui.label({ text = "Últimas " .. tostring(h.hours) .. " h", fontSize = 12, color = "on_surface/0.7", flexGrow = 1 }),
-    ui.label({ text = remaining and ("Quedan ~" .. fmtMinutes(remaining)) or "", fontSize = 11, color = "on_surface/0.55" }),
+  table.insert(children, common.sectionHeader("hist-title", "Últimas " .. tostring(h.hours) .. " h",
+                                              remaining and ("Quedan ~" .. fmtMinutes(remaining)) or nil))
+  table.insert(children, ui.column({ key = "hist-card", radius = 14, fill = common.CARD, padding = 12 }, {
+    ui.graph({ key = "hist-graph", values = values, height = 64, lineWidth = 2, fillOpacity = 0.35 }),
   }))
-  table.insert(children, ui.row({ key = "hist-bars", gap = gap, align = "end", height = CHART_HEIGHT }, bars))
+end
+
+local function batteryRow(key, glyph, title, subtitle, battery, dim)
+  return common.listRow(key, { glyph = glyph, title = title, subtitle = subtitle,
+                               trailing = common.batteryIcon(key .. "-bat", battery, { dim = dim }) })
 end
 
 render = function()
@@ -267,15 +277,16 @@ render = function()
     local empty = {}
     if status ~= nil then
       table.insert(empty, ui.row({ key = "gear-row", justify = "end" }, {
-        ui.button({ glyph = "settings", variant = "ghost", tooltip = "Ajustes", onClick = function() view = "settings"; render() end }),
+        roundButton("gear", "settings", function() view = "settings"; render() end),
       }))
     end
-    table.insert(empty, ui.glyph({ key = "empty-icon", name = "device-airpods", size = 32, color = "on_surface/0.4" }))
+    table.insert(empty, ui.glyph({ key = "empty-icon", name = "device-airpods", size = 56, color = "on_surface/0.35" }))
     table.insert(empty, ui.label({ key = "empty-title", text = status == nil and "airpodsd no está en ejecución" or "Sin datos todavía",
-                                   fontSize = 15, fontWeight = "bold" }))
+                                   fontSize = 17, fontWeight = "semibold" }))
     table.insert(empty, ui.label({ key = "empty-hint", text = status == nil and "systemctl --user start airpodsd" or "Abre la caja cerca del equipo",
-                                   fontSize = 12, color = "on_surface/0.6" }))
-    panel.render(ui.column({ padding = 20, gap = 10, align = "center", justify = "center", fill = "surface", radius = 16 }, empty))
+                                   fontSize = 13, color = common.SECONDARY }))
+    panel.render(ui.column({ padding = 24, gap = 12, align = "center", justify = "center", fill = "surface", radius = 24,
+                             flexGrow = 1 }, empty))
     return
   end
 
@@ -284,49 +295,51 @@ render = function()
   local onCharger = common.field(status, "case_on_charger")
   local caseSub = (lid == true and "Cerrada") or (lid == false and "Abierta") or ""
   if onCharger then caseSub = (caseSub ~= "" and (caseSub .. " · ") or "") .. "Cargando" end
+  local connText = (status.connected == true and "Conectados") or (status.connected == false and "No conectados")
+                   or "No emparejados"
 
   local header = {
     ui.row({ key = "header", gap = 10, align = "center" }, {
-      ui.glyph({ name = "device-airpods", size = 22, color = "primary" }),
       ui.column({ key = "title", gap = 2, flexGrow = 1 }, {
-        ui.label({ text = status.name or status.model_name or "AirPods", fontSize = 16, fontWeight = "bold" }),
-        ui.label({ text = "Visto " .. common.ago(status.last_seen), fontSize = 11,
-                   color = stale and "error/0.8" or "on_surface/0.55" }),
+        ui.label({ text = status.name or status.model_name or "AirPods", fontSize = 22, fontWeight = "bold", maxLines = 1 }),
+        ui.label({ text = connText .. " · visto " .. common.ago(status.last_seen), fontSize = 12,
+                   color = stale and "error/0.8" or common.SECONDARY }),
       }),
-      ui.button({ key = "gear", glyph = "settings", variant = "ghost", tooltip = "Ajustes",
-                  onClick = function() view = "settings"; render() end }),
+      roundButton("gear", "settings", function() view = "settings"; render() end),
     }),
   }
   local upd = status.update
   if upd ~= nil and upd.available then
     -- Arriba y fuera del scroll: siempre visible y dentro del panel (abajo podía quedar
     -- fuera del borde, y pulsarla contaba como un clic fuera que cerraba el panel).
-    table.insert(header, ui.button({ key = "update-banner", glyph = "download", variant = "outline",
-                                     text = "Versión " .. tostring(upd.latest) .. " disponible",
-                                     onClick = function() view = "settings"; render() end }))
+    table.insert(header, ui.row({ key = "update-banner", gap = 8, align = "center", paddingH = 14, paddingV = 10,
+                                  radius = 14, fill = "primary/0.14", onClick = function() view = "settings"; render() end }, {
+      ui.glyph({ name = "download", size = 16, color = "primary" }),
+      ui.label({ text = "Versión " .. tostring(upd.latest) .. " disponible", fontSize = 13, color = "primary", flexGrow = 1 }),
+      ui.glyph({ name = "chevron-right", size = 16, color = "primary" }),
+    }))
   end
 
   local children = {
-    ui.row({ key = "batteries", gap = 10 }, {
-      common.card("left", "device-airpods", "Izquierdo", common.field(status, "left"), common.where(status, "left"), { iconSize = 24, dim = stale }),
-      common.card("right", "device-airpods", "Derecho", common.field(status, "right"), common.where(status, "right"), { iconSize = 24, dim = stale }),
-      common.card("case", "device-airpods-case", "Caja", common.field(status, "case"), caseSub, { iconSize = 24, dim = stale }),
+    common.group("batteries", {
+      batteryRow("left", "device-airpods", "Izquierdo", common.where(status, "left"), common.field(status, "left"), stale),
+      batteryRow("right", "device-airpods", "Derecho", common.where(status, "right"), common.field(status, "right"), stale),
+      batteryRow("case", "device-airpods-case", "Caja", caseSub, common.field(status, "case"), stale),
     }),
   }
 
   if status.connected == false then
-    table.insert(children, ui.button({ key = "connect", text = connecting and "Conectando…" or "Conectar a este equipo",
-                                       variant = "primary", onClick = connect }))
+    table.insert(children, common.pillButton("connect", connecting and "Conectando…" or "Conectar a este equipo",
+                                             { onClick = connect }))
   elseif status.connected == nil then
-    table.insert(children, ui.label({ key = "connect", text = "Empareja los AirPods con este equipo para conectarlos",
-                                      fontSize = 12, color = "on_surface/0.6" }))
+    table.insert(children, common.sectionFooter("connect", "Empareja los AirPods con este equipo para conectarlos."))
   end
   ancSection(children)
   conversationSection(children)
   historySection(children)
   -- El resto va en un scroll del alto del panel: así nada se sale de su borde.
-  table.insert(header, ui.scroll({ key = "main-scroll", flexGrow = 1 }, { common.scrollBody("main", 14, children) }))
-  panel.render(ui.column({ padding = 16, gap = 14, fill = "surface", radius = 16, flexGrow = 1 }, header))
+  table.insert(header, ui.scroll({ key = "main-scroll", flexGrow = 1 }, { common.scrollBody("main", 12, children) }))
+  panel.render(ui.column({ padding = 18, gap = 14, fill = "surface", radius = 24, flexGrow = 1 }, header))
 end
 
 noctalia.state.watch(STATUS_KEY, function(value)

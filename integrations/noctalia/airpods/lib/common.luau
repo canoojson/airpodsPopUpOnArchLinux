@@ -88,30 +88,109 @@ function M.scrollBody(key, gap, children)
   })
 end
 
--- Tarjeta de batería (auricular o caja) usada por el panel y el popup.
-function M.card(key, glyph, label, battery, subtitle, opts)
+-- ---------------------------------------------------------------------------
+-- Componentes con estética iOS. La estructura copia iOS (listas agrupadas, icono de
+-- batería horizontal, botones redondos, píldoras) y los colores siguen el tema de
+-- Noctalia, salvo los de estado de la batería, que son los de iOS.
+
+M.IOS_GREEN = "#34C759"   -- cargando
+M.IOS_RED = "#FF3B30"     -- batería baja
+M.CARD = "on_surface/0.07"      -- tarjeta agrupada: se distingue del fondo con cualquier tema
+M.SEPARATOR = "on_surface/0.1"
+M.SECONDARY = "on_surface/0.55"
+
+-- Icono de batería horizontal (contorno, relleno proporcional y punta) + porcentaje.
+function M.batteryIcon(key, battery, opts)
   opts = opts or {}
+  local w, h = opts.width or 27, opts.height or 13
   local level = battery and battery.level
   local charging = battery and battery.charging
-  local low = level ~= nil and level <= M.LOW_BATTERY
+  local color = (charging and M.IOS_GREEN) or (level ~= nil and level <= M.LOW_BATTERY and M.IOS_RED)
+                or (opts.dim and "on_surface/0.45") or "on_surface"
+  local inner = w - 4
+  local fillW = level and math.max(2, math.floor(inner * level / 100 + 0.5)) or 0
+  local body = ui.row({ key = key .. "-body", width = w, height = h, radius = 3.5, padding = 1.5, gap = 0,
+                        border = opts.dim and "on_surface/0.3" or "on_surface/0.45", borderWidth = 1 }, {
+    ui.box({ key = key .. "-fill", width = fillW, height = h - 5, radius = 2, fill = level and color or "on_surface/0" }),
+  })
   local children = {
-    ui.glyph({ key = key .. "-icon", name = glyph, size = opts.iconSize or 30,
-               color = opts.dim and "on_surface/0.5" or "on_surface" }),
-    ui.row({ key = key .. "-level", gap = 4, align = "center" }, {
-      ui.label({ key = key .. "-pct", text = level and (level .. "%") or "—", fontSize = 16, fontWeight = "bold",
-                 color = opts.dim and "on_surface/0.6" or "on_surface" }),
-      -- Siempre presente (transparente si no carga) para que el texto no se desplace.
-      ui.glyph({ key = key .. "-bolt", name = "bolt", size = 14, color = charging and "primary" or "primary/0" }),
+    ui.row({ key = key .. "-shape", gap = 1, align = "center" }, {
+      body,
+      ui.box({ key = key .. "-tip", width = 1.5, height = 4, radius = 1, fill = opts.dim and "on_surface/0.3" or "on_surface/0.45" }),
     }),
-    ui.progress({ key = key .. "-bar", progress = level and (level / 100) or 0, fill = low and "error" or "primary",
-                  track = "on_surface/0.12", radius = 3, height = 5, width = 70 }),
-    ui.label({ key = key .. "-label", text = label, fontSize = 11, color = "on_surface/0.6" }),
   }
-  if subtitle ~= nil and subtitle ~= "" then
-    table.insert(children, ui.label({ key = key .. "-sub", text = subtitle, fontSize = 10, color = "on_surface/0.45" }))
+  if opts.showText ~= false then
+    table.insert(children, 1, ui.label({ key = key .. "-pct", text = level and (level .. " %") or "—",
+                                         fontSize = opts.fontSize or 13, color = opts.dim and M.SECONDARY or "on_surface" }))
   end
-  return ui.column({ key = key, flexGrow = 1, gap = 7, padding = 12, radius = 14,
-                     fill = "surface_variant/0.6", align = "center" }, children)
+  if charging then
+    table.insert(children, ui.glyph({ key = key .. "-bolt", name = "bolt", size = 12, color = M.IOS_GREEN }))
+  end
+  return ui.row({ key = key, gap = 6, align = "center" }, children)
+end
+
+-- Cabecera de sección de una lista agrupada ("AUDIO", "BATERÍA"...).
+function M.sectionHeader(key, text, trailing)
+  local children = { ui.label({ key = key .. "-t", text = string.upper(text), fontSize = 11, color = M.SECONDARY,
+                                flexGrow = 1 }) }
+  if trailing then table.insert(children, ui.label({ key = key .. "-r", text = trailing, fontSize = 11, color = M.SECONDARY })) end
+  return ui.row({ key = key, paddingH = 14, align = "center" }, children)
+end
+
+-- Pie de sección: texto explicativo pequeño bajo una lista agrupada.
+function M.sectionFooter(key, text, color)
+  -- Las etiquetas no admiten padding: la sangría la pone la fila.
+  return ui.row({ key = key, paddingH = 14 }, {
+    ui.label({ key = key .. "-t", text = text, fontSize = 11, color = color or M.SECONDARY, maxLines = 3, flexGrow = 1 }),
+  })
+end
+
+-- Lista agrupada de iOS: filas en una tarjeta redondeada separadas por líneas finas.
+function M.group(key, rows)
+  local children = {}
+  for i, row in ipairs(rows) do
+    if i > 1 then
+      table.insert(children, ui.row({ key = key .. "-sep" .. i, paddingH = 14 }, {
+        ui.box({ key = key .. "-line" .. i, height = 1, flexGrow = 1, fill = M.SEPARATOR }),
+      }))
+    end
+    table.insert(children, row)
+  end
+  return ui.column({ key = key, gap = 0, radius = 14, fill = M.CARD }, children)
+end
+
+-- Fila de lista: icono opcional en un círculo, título y subtítulo, y un control a la derecha.
+function M.listRow(key, opts)
+  local children = {}
+  if opts.glyph then
+    table.insert(children, ui.row({ key = key .. "-ic", width = 30, height = 30, radius = 15, align = "center",
+                                    justify = "center", fill = opts.glyphFill or "primary/0.15" }, {
+      ui.glyph({ name = opts.glyph, size = 17, color = opts.glyphColor or "primary" }),
+    }))
+  end
+  local texts = { ui.label({ key = key .. "-title", text = opts.title, fontSize = 14,
+                             color = opts.titleColor or "on_surface" }) }
+  if opts.subtitle and opts.subtitle ~= "" then
+    table.insert(texts, ui.label({ key = key .. "-sub", text = opts.subtitle, fontSize = 11, color = M.SECONDARY,
+                                   maxLines = 2 }))
+  end
+  table.insert(children, ui.column({ key = key .. "-txt", gap = 2, flexGrow = 1 }, texts))
+  if opts.trailing then table.insert(children, opts.trailing) end
+  return ui.row({ key = key, gap = 12, align = "center", paddingH = 14, paddingV = 11, onClick = opts.onClick },
+                children)
+end
+
+-- Botón ancho en forma de píldora (acción principal, como "Conectar" en iOS).
+function M.pillButton(key, text, opts)
+  opts = opts or {}
+  local children = {}
+  if opts.glyph then
+    table.insert(children, ui.glyph({ name = opts.glyph, size = 16, color = opts.color or "on_primary" }))
+  end
+  table.insert(children, ui.label({ text = text, fontSize = 15, fontWeight = "semibold",
+                                    color = opts.color or "on_primary" }))
+  return ui.row({ key = key, gap = 8, align = "center", justify = "center", paddingV = 13, radius = 24,
+                  fill = opts.fill or "primary", onClick = opts.onClick }, children)
 end
 
 return M
