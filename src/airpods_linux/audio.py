@@ -153,13 +153,17 @@ CONVERSATION_SWITCH_S = 120   # un cambio a ambiente más antiguo se considera h
 @dataclass
 class CallGuard:
     """En una llamada la detección de conversación salta cada vez que hablas: los AirPods
-    pasan a sonido ambiente y bajaría el volumen de la propia llamada. iOS la desactiva
-    durante las llamadas; aquí igual, con "micrófono en uso" como señal de llamada.
+    pasan a sonido ambiente y bajaría el volumen de la propia llamada. Como en iOS, en
+    llamada (micrófono en uso) está SIEMPRE desactivada: se apaga al empezar, al
+    reconectar, si los AirPods dicen que está activa y si llega un aviso de conversación.
+    No se fía del valor que informan los AirPods (tras pasar por el iPhone han dicho
+    "desactivada" con la detección funcionando).
 
-    Solo se reactiva si la desactivamos nosotros y sigue desactivada al colgar: si el
-    usuario la cambia a mano durante la llamada, manda él.
+    Al colgar se deja como la quiere el usuario fuera de las llamadas (`pref`).
     """
-    suspended: bool = False   # la desactivamos nosotros y falta reactivarla
+    suspended: bool = False   # en modo llamada: falta dejarla como la quiere el usuario
+    pref: bool | None = None  # lo que quiere el usuario fuera de las llamadas
+    sent: bool = False        # ya se envió "desactivada" en esta conexión AAP
     # Modo anterior si la detección acaba de pasar a sonido ambiente (estabas hablando):
     # al apagarla a mitad de conversación los AirPods se quedan en ambiente.
     switched_from: str | None = None
@@ -179,21 +183,36 @@ class CallGuard:
             return prev
         return None
 
-    def tick(self, in_call: bool, ca_enabled: bool | None, talking: bool = False) -> bool | None:
+    def tick(self, in_call: bool, ca_enabled: bool | None, active: bool = False) -> bool | None:
         """Valor a enviar a conversational_awareness, o None si no hay que hacer nada.
 
-        `talking`: los AirPods están en plena conversación. Apagar la detección entonces
-        los deja atascados en ese estado (sonido de llamada) hasta reconectarlos: se
-        espera a que ellos mismos den la conversación por terminada."""
+        ca_enabled: lo que informan los AirPods (o lo último enviado); None si no se sabe.
+        active: acaba de llegar un aviso de conversación, así que está activa diga lo que diga.
+        """
         if in_call:
-            if ca_enabled is True and not self.suspended and not talking:
+            if not self.suspended:
+                if self.pref is None and ca_enabled is not None:
+                    self.pref = ca_enabled
                 self.suspended = True
+            if not self.sent or ca_enabled is not False or active:
+                self.sent = True
                 return False
             return None
-        if self.suspended and ca_enabled is not None:   # sin saber el valor actual, esperar
+        if self.suspended:
             self.suspended = False
-            return True if ca_enabled is False else None
+            return True if self.pref else None
+        if ca_enabled is not None:
+            self.pref = ca_enabled
         return None
+
+    def connection_reset(self) -> None:
+        """Conexión AAP nueva: en llamada hay que volver a enviar "desactivada" aunque digan
+        que ya lo está (no es fiable)."""
+        self.sent = False
+
+    def set_pref(self, enabled: bool) -> None:
+        """El usuario la cambia durante una llamada: se aplicará al colgar."""
+        self.pref = enabled
 
 
 # Nivel de conversación (AAP) -> fracción del volumen original. 1-2: hablando,

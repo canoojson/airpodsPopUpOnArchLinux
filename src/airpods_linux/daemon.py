@@ -245,7 +245,10 @@ class Daemon:
         self.conversation: int | None = None
         self.in_call = False
         self.keys_received: float | None = None   # última respuesta de claves por AAP
-        self.call_guard = CallGuard(suspended=bool(self.config.get("conversation_suspended")))
+        pref = self.config.get("conversation_pref")
+        suspended = bool(self.config.get("conversation_suspended"))
+        # Antes solo se guardaba "suspended": si estaba suspendida, el usuario la tenía activada.
+        self.call_guard = CallGuard(suspended=suspended, pref=True if pref is None and suspended else pref)
         self._helper_ear = {"left": None, "right": None}
         self.system_bus = dbus.SystemBus()
 
@@ -531,6 +534,7 @@ class Daemon:
 
     def _on_aap_state(self, connected: bool) -> None:
         self.tracker.aap_active = connected
+        self.call_guard.connection_reset()
         # Lo último que vio la fuente BLE ya no vale (mientras tanto el estado lo escribía AAP).
         self.ear.source_counts.pop("BLE", None)
         if not connected:
@@ -603,22 +607,32 @@ class Daemon:
             if in_call and self.ducker:
                 self.ducker.restore()
             self._on_change(self.store)
-        talking = self.conversation is not None and self.conversation < RESTORE_FROM
-        send = self.call_guard.tick(in_call, self.aap_settings.get("conversational_awareness"), talking)
+        self._guard_conversation(active=False)
+        return True
+
+    def _guard_conversation(self, active: bool) -> None:
+        """Aplica CallGuard: en llamada la detección de conversación siempre desactivada."""
+        send = self.call_guard.tick(self.in_call, self.aap_settings.get("conversational_awareness"), active)
         if send is not None and self._send_setting("conversational_awareness", send):
-            log.info("detección de conversación %s", "reactivada al colgar" if send else
-                     "desactivada durante la llamada")
+            log.info("detección de conversación %s", "como la tenías, al colgar" if send else
+                     "desactivada: estás en una llamada")
             mode = self.call_guard.mode_to_restore(self.aap_settings.get("listening_mode"), time.time())
             if send is False and mode and self._send_setting("listening_mode", mode):
-                log.info("estabas hablando: el modo vuelve de sonido ambiente a %s", mode)
-        if self.call_guard.suspended != bool(self.config.get("conversation_suspended")):
+                log.info("la detección había pasado a sonido ambiente: el modo vuelve a %s", mode)
+        saved = (bool(self.config.get("conversation_suspended")), self.config.get("conversation_pref"))
+        if saved != (self.call_guard.suspended, self.call_guard.pref):
             self.config["conversation_suspended"] = self.call_guard.suspended
+            self.config["conversation_pref"] = self.call_guard.pref
             config_mod.save(self.config)
-        return True
 
     def _on_conversation(self, level: int) -> None:
         self.conversation = level
-        if not (self.ducker and self.config.get("conversation_duck", True)) or self.in_call:
+        if self.in_call:
+            # Un aviso de conversación en llamada: está activa aunque digan lo contrario.
+            if level < RESTORE_FROM:
+                self._guard_conversation(active=True)
+            return
+        if not (self.ducker and self.config.get("conversation_duck", True)):
             return
         address = self.airpods_address()
         prefix = address and airpods_sink_prefix(address)
@@ -655,6 +669,11 @@ class Daemon:
             aap.setting_packet(name, value)
         except ValueError as e:
             return f"{name}: {e}"
+        if name == "conversational_awareness" and self.in_call:
+            self.call_guard.set_pref(value)
+            self._guard_conversation(active=False)
+            return ("durante una llamada la detección de conversación está desactivada; "
+                    f"al colgar quedará {'activada' if value else 'desactivada'}")
         if not self._send_setting(name, value):
             return "no se pudo enviar el ajuste"
         return None

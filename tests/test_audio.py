@@ -140,21 +140,48 @@ def test_recording_mic_ignores_monitors_and_corked():
 def test_call_guard_suspends_and_restores():
     from airpods_linux.audio import CallGuard
     g = CallGuard()
-    assert g.tick(False, True) is None
-    assert g.tick(True, True) is False          # empieza la llamada: desactivar
-    assert g.tick(True, False) is None          # ya está desactivada
-    assert g.tick(False, False) is True         # cuelga: reactivar
+    assert g.tick(False, True) is None and g.pref is True   # fuera de llamada: aprende la preferencia
+    assert g.tick(True, True) is False                      # empieza la llamada: desactivar
+    assert g.tick(True, False) is None                      # ya está desactivada
+    assert g.tick(False, False) is True                     # cuelga: como la tenía
     assert g.tick(False, True) is None and not g.suspended
 
 
-def test_call_guard_respects_manual_changes_and_unknown_state():
+def test_call_guard_always_off_during_call():
     from airpods_linux.audio import CallGuard
-    assert CallGuard().tick(True, False) is None            # estaba desactivada: no tocar
-    g = CallGuard()
+    g = CallGuard(pref=True)
+    assert g.tick(True, None) is False                      # al reconectar no se sabe: desactivar
+    assert g.tick(True, True) is False                      # los AirPods dicen que está activa
+    assert g.tick(True, False) is None
+    assert g.tick(True, False, active=True) is False        # aviso de conversación: sí lo estaba
+    assert CallGuard().tick(True, False) is False           # aunque digan "desactivada", se envía
+
+
+def test_call_guard_resends_on_every_connection():
+    from airpods_linux.audio import CallGuard
+    g = CallGuard(suspended=True, pref=True)                # ya en modo llamada (p. ej. tras reiniciar)
+    assert g.tick(True, False) is False                     # dicen "desactivada": se envía igual
+    assert g.tick(True, False) is None                      # una vez por conexión
+    g.connection_reset()                                    # se reconectan (vuelven del iPhone)
+    assert g.tick(True, False) is False
+
+
+def test_call_guard_pref_changed_during_call():
+    from airpods_linux.audio import CallGuard
+    g = CallGuard(pref=True)
     g.tick(True, True)
-    assert g.tick(False, True) is None and not g.suspended  # la activó el usuario durante la llamada
-    g = CallGuard(suspended=True)                           # tras reiniciar airpodsd en una llamada
-    assert g.tick(False, None) is None and g.suspended      # aún sin conexión AAP: esperar
+    g.set_pref(False)                                       # la desactiva a mano en la llamada
+    assert g.tick(False, False) is None                     # al colgar sigue desactivada
+    g = CallGuard(pref=False)
+    g.tick(True, None)
+    g.set_pref(True)
+    assert g.tick(False, False) is True
+
+
+def test_call_guard_after_restart_in_call():
+    from airpods_linux.audio import CallGuard
+    g = CallGuard(suspended=True, pref=True)                # airpodsd reiniciado en una llamada
+    assert g.tick(True, None) is False
     assert g.tick(False, False) is True
 
 
@@ -178,10 +205,3 @@ def test_call_guard_keeps_manual_transparency():
     g.note_mode("transparency", "noise", True, 110)        # ya volvió solo
     assert g.mode_to_restore("noise", 111) is None
 
-
-def test_call_guard_waits_for_conversation_to_end():
-    from airpods_linux.audio import CallGuard
-    g = CallGuard()
-    assert g.tick(True, True, talking=True) is None      # hablando: no se toca aún
-    assert not g.suspended
-    assert g.tick(True, True, talking=False) is False    # terminó la conversación: ahora sí

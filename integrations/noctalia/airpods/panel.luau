@@ -208,11 +208,14 @@ local caBusy = false
 local function conversationSection(children)
   local ca = aapSetting("conversational_awareness")
   if not ownAap() or ca == nil then return end
+  -- En llamada airpodsd la mantiene siempre desactivada: el interruptor no se puede tocar.
+  local inCall = status.aap and status.aap.in_call == true
   table.insert(children, common.group("ca-group", {
     common.listRow("ca", {
       glyph = "message-circle", title = "Detección de conversación",
-      subtitle = "Baja el volumen y deja pasar el sonido al hablar",
-      trailing = ui.toggle({ key = "ca-toggle", checked = ca == true, enabled = not caBusy, onChange = function(v)
+      subtitle = inCall and "Desactivada durante la llamada" or "Baja el volumen y deja pasar el sonido al hablar",
+      trailing = ui.toggle({ key = "ca-toggle", checked = ca == true and not inCall, enabled = not caBusy and not inCall,
+                             onChange = function(v)
         caBusy = true
         render()
         noctalia.runAsync({ ctl(), "feature", "conversational_awareness", v == "true" and "on" or "off" }, function(result)
