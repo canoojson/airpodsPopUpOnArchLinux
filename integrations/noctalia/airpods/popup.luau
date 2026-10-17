@@ -28,8 +28,6 @@ local function connect()
   end, 15000)
 end
 
-local IOS_BLUE = "#0A84FF"
-
 -- Una pieza (auricular o caja): ilustración, insignia I/D y batería debajo, como en iOS.
 -- Batería de una pieza: icono de iOS encima del porcentaje.
 local function batteryStack(key, battery, badge)
@@ -79,7 +77,7 @@ function render()
                                                     onClick = function() panel.close() end })
   elseif state.connected == false then
     footer = common.pillButton("footer", connecting and "Conectando…" or "Conectar",
-                               { fill = IOS_BLUE, color = "#FFFFFF", onClick = connect })
+                               { fill = "primary", color = "on_primary", onClick = connect })
   else
     -- connected == nil: los AirPods no están emparejados con este equipo.
     footer = ui.label({ key = "footer", text = "Empareja los AirPods con este equipo para conectarlos",
