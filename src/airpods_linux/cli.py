@@ -373,7 +373,8 @@ def cmd_report(args) -> int:
                 seen.setdefault(clear, {"bytes": clear, "len": len(data), "count": 0})["count"] += 1
         try:
             from .scanner import BleScanner
-            BleScanner(on_advert, window=None).run(duration=args.scan)
+            # Pasivo, como airpodsd: un discovery activo continuo corta el audio de los AirPods.
+            BleScanner(on_advert, window=(4, 8), passive=True).run(duration=args.scan)
         except Exception as e:   # sin BlueZ o sin adaptador: el informe sale igual
             print(f"No se pudo escanear: {e}", file=sys.stderr)
         adverts = list(seen.values())
