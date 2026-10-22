@@ -19,7 +19,7 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 > **El instalador detecta los tres primeros y te pregunta si quieres que los corrija.** Todos se explican paso a paso en [Antes de instalar](#antes-de-instalar-conflictos-de-audio-conocidos).
 
 > [!NOTE]
-> Solo se ha probado a fondo con **AirPods Pro 3** en **Arch Linux + Hyprland + Noctalia**. Si algo falla en tu equipo, abre un *issue* con la salida de `airpodsctl status --json` y `journalctl --user -u airpodsd -n 50`.
+> Solo se ha probado a fondo con **AirPods Pro 3** en **Arch Linux + Hyprland + Noctalia**. Si algo falla en tu equipo, abre un *issue* con la salida de `airpodsctl report` y `journalctl --user -u airpodsd -n 50`.
 
 ## Qué hace
 
@@ -50,7 +50,7 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 
 Cada instalación reconoce **solo los AirPods de su usuario**: `airpodsctl keys fetch` localiza los AirPods emparejados en tu equipo (si hay varios, te pide elegir) y guarda sus claves. Las direcciones Bluetooth no se usan para identificarlos, porque rotan cada pocos minutos: se reconocen criptográficamente. Por ahora se sigue **un par de AirPods** por usuario.
 
-¿Lo has probado con otro modelo? Abre un *issue* con la salida de `airpodsctl status --json`.
+¿Lo has probado con otro modelo? Ejecuta `airpodsctl report`, abre la caja cerca del equipo mientras escucha y pega el resultado en un *issue*. El informe no incluye direcciones MAC, nombres de dispositivos, rutas de tu usuario ni la parte cifrada de los anuncios; aun así, revísalo antes de publicarlo.
 
 ## Requisitos
 
@@ -237,6 +237,7 @@ airpodsctl keys fetch [MAC] | show         # claves de proximidad
 airpodsctl rename "Mis AirPods"            # nombre en este equipo ('' = el original)
 airpodsctl update [--check]                # busca una versión nueva e instala (--check: solo mira)
 airpodsctl config get | set <opción> true|false   # ver la tabla de opciones más abajo
+airpodsctl report [--scan 20] [-o FICHERO]  # informe anonimizado para abrir un issue
 systemctl --user status airpodsd          # el servicio
 journalctl --user -u airpodsd -f          # sus logs (aperturas y cierres de la caja)
 ```

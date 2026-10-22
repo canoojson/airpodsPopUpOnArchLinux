@@ -360,6 +360,40 @@ def cmd_keys(args) -> int:
     return 0
 
 
+def cmd_report(args) -> int:
+    from . import report, update
+    adverts: list[dict] = []
+    if args.scan > 0:
+        print(f"Escuchando {args.scan:g} s: abre la caja de los AirPods cerca del equipo…", file=sys.stderr)
+        seen: dict[str, dict] = {}
+
+        def on_advert(_addr, rssi, data, _ts):
+            clear = report.clear_part(data)
+            if clear and rssi >= report.NEAR_RSSI:
+                seen.setdefault(clear, {"bytes": clear, "len": len(data), "count": 0})["count"] += 1
+        try:
+            from .scanner import BleScanner
+            BleScanner(on_advert, window=None).run(duration=args.scan)
+        except Exception as e:   # sin BlueZ o sin adaptador: el informe sale igual
+            print(f"No se pudo escanear: {e}", file=sys.stderr)
+        adverts = list(seen.values())
+    try:
+        devices = paired_devices()
+    except Exception:
+        devices = []
+    data = report.build(daemon_state(), devices, adverts, report.system_info(),
+                        update.current_version(), update.install_kind())
+    text = report.render(data)
+    if args.output:
+        with open(args.output, "w") as fh:
+            fh.write(text + "\n")
+        print(f"Informe guardado en {args.output}", file=sys.stderr)
+    else:
+        print(text, flush=True)
+    print(f"\nRevísalo y pégalo en {report.ISSUES_URL}", file=sys.stderr)
+    return 0
+
+
 def notify_daemon() -> None:
     """Pide a airpodsd que relea la configuración (si está en marcha)."""
     try:
@@ -491,6 +525,11 @@ def main(argv=None) -> int:
     p = sub.add_parser("rename", help="cambia el nombre de los AirPods en este equipo ('' = original)")
     p.add_argument("name")
     p.set_defaults(func=cmd_rename)
+
+    p = sub.add_parser("report", help="informe anonimizado para abrir un issue (modelos nuevos, fallos)")
+    p.add_argument("--scan", type=float, default=20, help="segundos capturando anuncios (0 = no escanear)")
+    p.add_argument("-o", "--output", help="guardar en un fichero en vez de mostrarlo")
+    p.set_defaults(func=cmd_report)
 
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING,

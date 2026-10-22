@@ -4,6 +4,7 @@ Se abre con los AirPods conectados a este equipo y sin airpods-helper (que ocupa
 """
 import logging
 import time
+from collections import Counter
 
 from .. import aap
 from .. import config as config_mod
@@ -26,6 +27,8 @@ class AapController:
         self.conversation: int | None = None
         self.in_call = False
         self.keys_received: float | None = None   # última respuesta de claves por AAP
+        # Paquetes sin interpretar por código de operación (para airpodsctl report).
+        self.unknown: Counter[str] = Counter()
         pref = daemon.config.get("conversation_pref")
         suspended = bool(daemon.config.get("conversation_suspended"))
         # Antes solo se guardaba "suspended": si estaba suspendida, el usuario la tenía activada.
@@ -47,7 +50,8 @@ class AapController:
                 "conversation": self.conversation,
                 "conversation_duck": bool(d.config.get("conversation_duck", True)),
                 "in_call": self.in_call,
-                "keys_received": self.keys_received}
+                "keys_received": self.keys_received,
+                "unknown_ops": dict(self.unknown)}
 
     def request_keys(self) -> bool:
         return self.client is not None and self.client.request_keys()
@@ -117,6 +121,9 @@ class AapController:
             self._on_keys(found)
         else:
             log.debug("AAP: paquete sin interpretar %s", pkt.hex())
+            # Solo el código: el contenido puede llevar el número de serie o el nombre.
+            if pkt.startswith(aap.HEADER) and len(pkt) >= 6:
+                self.unknown[f"0x{pkt[4] | pkt[5] << 8:04x}"] += 1
 
     def _on_ear(self, ear) -> None:
         # La oreja por AAP es una fuente propia para la pausa (ver ear.py) y además se
