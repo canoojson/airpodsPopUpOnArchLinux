@@ -237,6 +237,7 @@ airpodsctl keys fetch [MAC] | show         # claves de proximidad
 airpodsctl rename "Mis AirPods"            # nombre en este equipo ('' = el original)
 airpodsctl update [--check]                # busca una versión nueva e instala (--check: solo mira)
 airpodsctl config get | set <opción> true|false   # ver la tabla de opciones más abajo
+airpodsctl airplay [0-150]                 # volumen del iPhone por AirPlay (UxPlay), aparte del resto
 airpodsctl report [--scan 20] [-o FICHERO]  # informe anonimizado para abrir un issue
 systemctl --user status airpodsd          # el servicio
 journalctl --user -u airpodsd -f          # sus logs (aperturas y cierres de la caja)
@@ -251,6 +252,7 @@ Opciones de `airpodsctl config set` (todas menos `aap` también en el ⚙):
 | `low_battery_alert` | sí | Aviso al 20 % y al 10 % |
 | `aap` | sí | Conexión AAP propia (modos de escucha, ajustes, batería al instante) si airpods-helper no la usa. Solo por terminal |
 | `conversation_duck` | sí | Bajar el volumen mientras hablas (con la detección de conversación activada) |
+| `airplay_hint` | sí | Con UxPlay, recordar que por AirPlay suenan el iPhone y el PC a la vez |
 | `update_check` | no | Buscar actualizaciones una vez al día |
 
 ### Modo de escucha y ajustes de los AirPods
@@ -326,6 +328,14 @@ Los AirPods solo mandan el audio a un dispositivo a la vez. `airpodsd` hace el c
 
 - **Le das a play en el iPhone** y este se lleva los AirPods: el PC pausa lo que sonaba por ellos (y el sonido no salta a los altavoces). Al volver, dale a play: no se reanuda solo.
 - **Le das a play en el PC** con los AirPods puestos pero conectados a otro dispositivo: `airpodsd` los conecta a este equipo.
+
+#### El iPhone y el PC a la vez (AirPlay con UxPlay)
+
+Si tienes [UxPlay](https://github.com/FDH2/UxPlay) como receptor AirPlay en el PC, puedes oír los dos a la vez: en el iPhone, manda el audio por AirPlay al PC. Los AirPods se quedan conectados al PC, que mezcla el sonido del iPhone con el suyo.
+
+- Mientras suena el iPhone por AirPlay, el panel muestra qué suena y un **control de volumen solo para el iPhone**, sin tocar el del resto. También desde la terminal: `airpodsctl airplay 60`.
+- Si el iPhone se lleva los AirPods con el PC sonando y UxPlay en marcha, `airpodsd` te recuerda esta opción con una notificación, como mucho una vez al día. Se desactiva en el ⚙ o con `airpodsctl config set airplay_hint false`.
+- `airpodsd` reconoce UxPlay por su interfaz MPRIS (`org.mpris.MediaPlayer2.uxplay`) y su flujo de audio en PipeWire. Sin UxPlay, todo esto no aparece.
 
 ### Ajustes (⚙)
 

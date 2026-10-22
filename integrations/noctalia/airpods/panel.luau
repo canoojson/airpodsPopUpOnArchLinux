@@ -1,7 +1,7 @@
 --!nonstrict
 -- Panel desplegable con aspecto de iOS: batería de cada auricular y de la caja
 -- (airpodsd, también con la caja cerrada), control de ruido, detección de conversación
--- y gráfica de las últimas 24 h. El modo va por la conexión AAP de airpodsd o,
+-- iPhone por AirPlay (UxPlay) y gráfica de las últimas 24 h. El modo va por la conexión AAP de airpodsd o,
 -- si la tiene airpods-helper, por airpods-cli.
 
 local common = require("./lib/common.luau")
@@ -228,6 +228,48 @@ local function conversationSection(children)
   }))
 end
 
+-- El iPhone por AirPlay (UxPlay): suena en el PC a la vez que el resto, con su propio volumen.
+local airplayDraft = nil   -- volumen mientras se arrastra el control
+local airplayBusy = false
+
+local function setAirplayVolume(v)
+  if airplayBusy then return end
+  airplayBusy = true
+  noctalia.runAsync({ ctl(), "airplay", tostring(v) }, function(result)
+    airplayBusy = false
+    airplayDraft = nil
+    if result.exitCode ~= 0 then noctalia.notifyError("AirPods", "No se pudo cambiar el volumen de AirPlay") end
+    refresh()
+  end, 5000)
+end
+
+local function airplaySection(children)
+  local ap = status.airplay
+  if ap == nil or not ap.playing then return end
+  local what = ap.title and (ap.artist and (ap.title .. " · " .. ap.artist) or ap.title) or "Sonando a la vez que el PC"
+  local rows = {
+    common.listRow("airplay", { glyph = "device-mobile", title = "iPhone por AirPlay", subtitle = what }),
+  }
+  local volume = airplayDraft or ap.volume
+  if volume ~= nil then
+    table.insert(rows, ui.row({ key = "airplay-vol", gap = 10, align = "center", paddingH = 14, paddingV = 6 }, {
+      ui.glyph({ name = "volume-2", size = 16, color = common.SECONDARY }),
+      ui.slider({ key = "airplay-slider", min = 0, max = 100, step = 1, value = math.min(volume, 100), flexGrow = 1,
+                  controlSize = "sm", enabled = not airplayBusy,
+                  onChange = function(v)
+        airplayDraft = math.floor(tonumber(v) or volume)
+        render()
+      end,
+                  onDragEnd = function()
+        if airplayDraft ~= nil then setAirplayVolume(airplayDraft) end
+      end }),
+      ui.label({ text = tostring(volume) .. " %", fontSize = 12, color = common.SECONDARY, width = 40, textAlign = "right" }),
+    }))
+  end
+  table.insert(children, common.sectionHeader("airplay-title", "AirPlay"))
+  table.insert(children, common.group("airplay-group", rows))
+end
+
 local function fmtMinutes(m)
   if m >= 60 then return string.format("%d h %02d min", math.floor(m / 60), m % 60) end
   return m .. " min"
@@ -339,6 +381,7 @@ render = function()
   end
   ancSection(children)
   conversationSection(children)
+  airplaySection(children)
   historySection(children)
   -- El resto va en un scroll del alto del panel: así nada se sale de su borde.
   table.insert(header, ui.scroll({ key = "main-scroll", flexGrow = 1 }, { common.scrollBody("main", 12, children) }))

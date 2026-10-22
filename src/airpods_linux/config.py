@@ -15,11 +15,12 @@ DEFAULTS = {
     "low_battery_alert": True,   # aviso al 20 % y al 10 %
     "aap": True,                 # conexión AAP propia (modos de escucha...) si airpods-helper no la usa
     "conversation_duck": True,   # bajar el volumen al hablar (con la detección de conversación activa)
+    "airplay_hint": True,        # con UxPlay: recordar que por AirPlay suenan el iPhone y el PC a la vez
     "conversation_suspended": False,    # interno: en modo llamada (la detección está desactivada)
     "conversation_pref": None,          # interno: detección de conversación que quiere el usuario fuera de llamadas
 }
 BOOL_KEYS = {"update_check", "ear_pause", "ear_resume", "audio_follow_ear", "low_battery_alert", "aap",
-             "conversation_duck"}
+             "conversation_duck", "airplay_hint"}
 
 
 def load(path: Path = CONFIG_PATH) -> dict:

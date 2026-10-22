@@ -395,6 +395,32 @@ def cmd_report(args) -> int:
     return 0
 
 
+def cmd_airplay(args) -> int:
+    """Volumen del iPhone por AirPlay (UxPlay), aparte del resto del audio del PC."""
+    from .airplay import is_uxplay_stream, receiver_name, stream_volume
+    from .audio import PactlSinks
+    sinks = PactlSinks()
+    if not sinks.available():
+        sys.exit("Hace falta pactl (paquete libpulse)")
+    streams = [s for s in sinks.sink_inputs() if is_uxplay_stream(s)]
+    if args.volume is None:
+        if not streams:
+            name = receiver_name()
+            print("UxPlay no está sonando" + (f" (en el iPhone, AirPlay a «{name}»)" if name else ""))
+            return 1
+        print(f"AirPlay (UxPlay): volumen {stream_volume(streams[0])} %")
+        return 0
+    if not 0 <= args.volume <= 150:
+        sys.exit("Volumen de 0 a 150")
+    if not streams:
+        sys.exit("UxPlay no está sonando: no hay volumen que cambiar")
+    ok = all(sinks.set_input_volume(s["index"], args.volume) for s in streams)
+    if not ok:
+        sys.exit("No se pudo cambiar el volumen")
+    print(f"AirPlay (UxPlay): volumen {args.volume} %")
+    return 0
+
+
 def notify_daemon() -> None:
     """Pide a airpodsd que relea la configuración (si está en marcha)."""
     try:
@@ -526,6 +552,10 @@ def main(argv=None) -> int:
     p = sub.add_parser("rename", help="cambia el nombre de los AirPods en este equipo ('' = original)")
     p.add_argument("name")
     p.set_defaults(func=cmd_rename)
+
+    p = sub.add_parser("airplay", help="volumen del iPhone por AirPlay (UxPlay), aparte del resto")
+    p.add_argument("volume", nargs="?", type=int, help="0-150 (sin argumento: el actual)")
+    p.set_defaults(func=cmd_airplay)
 
     p = sub.add_parser("report", help="informe anonimizado para abrir un issue (modelos nuevos, fallos)")
     p.add_argument("--scan", type=float, default=20, help="segundos capturando anuncios (0 = no escanear)")

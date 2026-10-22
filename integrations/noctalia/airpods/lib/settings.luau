@@ -108,6 +108,7 @@ function M.render(status, opts)
   local audio = (status and status.audio) or {}
   local alerts = (status and status.alerts) or {}
   local aap = (status and status.aap) or {}
+  local airplay = (status and status.airplay) or {}
   local device = (aap.owner == "airpodsd" and aap.connected and aap.settings) or nil
 
   local function toggleRow(key, title, subtitle, checked, onToggle)
@@ -162,13 +163,24 @@ function M.render(status, opts)
       toggleRow("s-duck", "Bajar el volumen al hablar", "Con la detección de conversación activada",
                 aap.conversation_duck ~= false, function(v) setOption(status, "conversation_duck", v, refresh, rerender) end),
     }),
-
+  }
+  if airplay.running then
+    table.insert(children, common.sectionHeader("s-airplay-h", "AirPlay"))
+    table.insert(children, common.group("s-airplay-g", {
+      toggleRow("s-airplay", "Recordar AirPlay", "Si el iPhone se lleva los AirPods con el PC sonando",
+                airplay.hint ~= false, function(v) setOption(status, "airplay_hint", v, refresh, rerender) end),
+    }))
+    table.insert(children, common.sectionFooter("s-airplay-f",
+      "Con AirPlay a " .. (airplay.receiver and ("«" .. airplay.receiver .. "»") or "este equipo")
+      .. ", el iPhone suena en los AirPods a la vez que el PC."))
+  end
+  for _, node in ipairs({
     common.sectionHeader("s-bat-h", "Batería"),
     common.group("s-bat-g", {
       toggleRow("s-lowbat", "Avisar con batería baja", "Al 20 % y al 10 %, una vez por carga",
                 alerts.low_battery ~= false, function(v) setOption(status, "low_battery_alert", v, refresh, rerender) end),
     }),
-  }
+  }) do table.insert(children, node) end
 
   if device ~= nil and (device.one_bud_anc ~= nil or device.volume_swipe ~= nil) then
     local rows = {}

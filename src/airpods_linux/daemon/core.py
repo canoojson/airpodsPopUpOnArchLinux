@@ -29,6 +29,7 @@ from ..media import MediaController
 from ..proximity import MODEL_NAMES
 from ..state import STATE_PATH, StateStore, runtime_status_path
 from .aapctl import AapController
+from .airplay import AirplayController
 from .ears import EarController
 from .handoff import HandoffController
 from .popup import CasePopup
@@ -69,6 +70,7 @@ class Daemon:
         self.aap = AapController(self)
         self.handoff = HandoffController(self)
         self.updates = UpdateChecker(self)
+        self.airplay = AirplayController(self)
 
         from ..scanner import BleScanner, Tracker
         self.tracker = Tracker(self.store, self.keys, on_change=self._on_ble_change, on_own=self.popup.on_own)
@@ -77,6 +79,7 @@ class Daemon:
                  else f"ventanas {args.on}/{args.off} s")
         self.ears.watch_helper()
         self.handoff.watch()
+        self.airplay.watch()
 
     def airpods_address(self) -> str | None:
         """MAC de los AirPods emparejados: la de las claves o, sin claves, la que encuentre BlueZ."""
@@ -123,6 +126,7 @@ class Daemon:
             "aap": self.aap.state(v("model")),
             "history": history_mod.summary(self.history, time.time()),
             "update": self.updates.state(),
+            "airplay": self.airplay.state(),
             **self.store.to_dict(),
         }
 
@@ -199,6 +203,7 @@ class Daemon:
         GLib.timeout_add_seconds(2, self.ears.audio_tick)
         GLib.timeout_add_seconds(2, self.aap.call_tick)
         GLib.timeout_add_seconds(2, self.handoff.tick)
+        GLib.timeout_add_seconds(2, self.airplay.tick)
         self.updates.schedule()
         self.scanner.run(scan=not self.args.no_ble)
 

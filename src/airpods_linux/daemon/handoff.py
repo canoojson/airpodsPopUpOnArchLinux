@@ -74,6 +74,7 @@ class HandoffController:
             self.d.media.forget()   # no se reanuda solo: como en iOS, al volver le das a play
             log.info("AirPods desconectados (¿se los ha llevado otro dispositivo?): %s",
                      f"pausado {players(paused)}" if paused else "nada sonando")
+            self.d.airplay.on_airpods_taken(bool(paused))
 
     def _on_mpris_props(self, iface, changed, _invalidated) -> None:
         if iface != PLAYER_IFACE or str(changed.get("PlaybackStatus", "")) != "Playing":

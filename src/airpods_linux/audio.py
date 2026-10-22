@@ -59,6 +59,14 @@ class PactlSinks:
         except ValueError:
             return None
 
+    def sink_inputs(self) -> list[dict]:
+        """Flujos de reproducción (`pactl -f json list sink-inputs`)."""
+        streams = self._json("list", "sink-inputs")
+        return streams if isinstance(streams, list) else []
+
+    def set_input_volume(self, index: int, pct: int) -> bool:
+        return self._run("set-sink-input-volume", str(index), f"{pct}%") is not None
+
     def audio_active(self) -> bool:
         """¿Hay alguna aplicación reproduciendo (sin pausar) en este equipo?"""
         streams = self._json("list", "sink-inputs")
