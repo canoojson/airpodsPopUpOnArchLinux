@@ -1,0 +1,15 @@
+{
+    "KPlugin": {
+        "Id": "io.github.airpodslinux",
+        "Name": "AirPods",
+        "Description": "Batería de los AirPods (también con la caja cerrada) y modo de escucha. Necesita airpodsd (airpods-linux).",
+        "Icon": "audio-headphones",
+        "Category": "System Information",
+        "Authors": [{ "Name": "canoojson" }],
+        "License": "GPL-3.0-or-later",
+        "Version": "1.0",
+        "Website": "https://github.com/canoojson/airpodsPopUpOnArchLinux"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

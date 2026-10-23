@@ -7,6 +7,8 @@
 # Opciones:
 #   --no-service     no instala ni arranca el servicio systemd airpodsd
 #   --no-noctalia    no instala el plugin de Noctalia
+#   --no-gnome       no instala la extensión de GNOME Shell
+#   --no-kde         no instala el plasmoide de KDE Plasma
 #   --no-bluez       no ofrece activar Experimental en /etc/bluetooth/main.conf
 #   --ref REF        rama o etiqueta a descargar si no se ejecuta desde un clon (por defecto: última release)
 #   --auto-update y|n  activa o no la comprobación diaria de actualizaciones sin preguntar
@@ -20,20 +22,26 @@ DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/airpods-linux"
 BIN_DIR="$HOME/.local/bin"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 NOCTALIA_PLUGINS="${XDG_DATA_HOME:-$HOME/.local/share}/noctalia/plugins"
+GNOME_UUID="airpods-linux@canoojson.github.io"
+GNOME_EXT="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$GNOME_UUID"
+KDE_ID="io.github.airpodslinux"
+KDE_APPLET="${XDG_DATA_HOME:-$HOME/.local/share}/plasma/plasmoids/$KDE_ID"
 BLUEZ_CONF=/etc/bluetooth/main.conf
 
-WITH_SERVICE=1 WITH_NOCTALIA=1 WITH_BLUEZ=1 REF="" UNINSTALL=0 UNINSTALL_ARGS=() UPDATE=0 AUTO_UPDATE=""
+WITH_SERVICE=1 WITH_NOCTALIA=1 WITH_GNOME=1 WITH_KDE=1 WITH_BLUEZ=1 REF="" UNINSTALL=0 UNINSTALL_ARGS=() UPDATE=0 AUTO_UPDATE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-service) WITH_SERVICE=0 ;;
     --no-noctalia) WITH_NOCTALIA=0 ;;
+    --no-gnome) WITH_GNOME=0 ;;
+    --no-kde) WITH_KDE=0 ;;
     --no-bluez) WITH_BLUEZ=0 ;;
     --ref) REF="${2:?--ref necesita un valor}"; shift ;;
     --uninstall) UNINSTALL=1 ;;
     --update) UPDATE=1; WITH_BLUEZ=0 ;;
     --auto-update) AUTO_UPDATE="${2:?--auto-update necesita y o n}"; shift ;;
     --purge) UNINSTALL_ARGS+=(--purge) ;;
-    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "Opción desconocida: $1" >&2; exit 2 ;;
   esac
   shift
@@ -281,6 +289,38 @@ if [ "$WITH_NOCTALIA" = 1 ] && command -v noctalia >/dev/null; then
   fi
 elif [ "$WITH_NOCTALIA" = 1 ]; then
   warn "Noctalia no está instalado: el aviso al abrir la caja será una notificación de escritorio"
+fi
+
+# ---------------------------------------------------------------------------
+# GNOME Shell y KDE Plasma: al actualizar, solo si ya estaban instalados.
+[ "$UPDATE" = 1 ] && [ ! -e "$GNOME_EXT" ] && WITH_GNOME=0
+[ "$UPDATE" = 1 ] && [ ! -e "$KDE_APPLET" ] && WITH_KDE=0
+if [ "$WITH_GNOME" = 1 ] && command -v gnome-shell >/dev/null; then
+  step "Extensión de GNOME Shell ($GNOME_UUID)"
+  if [ -L "$GNOME_EXT" ]; then
+    warn "$GNOME_EXT es un enlace (instalación de desarrollo); no lo toco"
+  else
+    rm -rf "$GNOME_EXT"
+    mkdir -p "$(dirname "$GNOME_EXT")"
+    cp -r "$DATA_DIR/src/integrations/gnome/$GNOME_UUID" "$GNOME_EXT"
+    ok "copiada en $GNOME_EXT"
+  fi
+  if gnome-extensions enable "$GNOME_UUID" >/dev/null 2>&1; then
+    ok "activada (si no aparece, cierra sesión y vuelve a entrar: GNOME carga las extensiones nuevas al iniciar)"
+  else
+    warn "actívala tras volver a iniciar sesión: gnome-extensions enable $GNOME_UUID"
+  fi
+fi
+if [ "$WITH_KDE" = 1 ] && command -v plasmashell >/dev/null && command -v kpackagetool6 >/dev/null; then
+  step "Plasmoide de KDE Plasma ($KDE_ID)"
+  if [ -L "$KDE_APPLET" ]; then
+    warn "$KDE_APPLET es un enlace (instalación de desarrollo); no lo toco"
+  elif kpackagetool6 -t Plasma/Applet -u "$DATA_DIR/src/integrations/kde/$KDE_ID" >/dev/null 2>&1 \
+       || kpackagetool6 -t Plasma/Applet -i "$DATA_DIR/src/integrations/kde/$KDE_ID" >/dev/null 2>&1; then
+    ok "instalado. Añádelo al panel: clic derecho → Añadir o gestionar elementos gráficos → AirPods"
+  else
+    warn "kpackagetool6 no pudo instalar el plasmoide"
+  fi
 fi
 
 # ---------------------------------------------------------------------------

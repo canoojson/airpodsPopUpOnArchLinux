@@ -34,7 +34,9 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 - **Pausa al quitarte un auricular** (cualquiera, también con el otro en la caja) y reanuda al volver a ponértelo, como en iOS.
 - **Modo de escucha y ajustes de los AirPods** (cancelación de ruido, adaptativo, ambiente, detección de conversación…) con su propia conexión AAP, sin depender de airpods-helper. Al hablar, baja el volumen como iOS.
 - **Aviso de batería baja** al 20 % y al 10 %, y **historial** con gráfica de las últimas 24 h y el tiempo restante estimado.
-- **Barras de estado**: salida para Waybar, Polybar y similares (`airpodsctl status --waybar`, `airpodsctl monitor`).
+- **Barras de estado**: salida para Waybar, Polybar y similares (`airpodsctl status --waybar`, `airpodsctl monitor`), y **extensiones para GNOME Shell y KDE Plasma**.
+- **Ecualizador** de 10 bandas solo para los AirPods, con preajustes como los de iOS.
+- **El iPhone y el PC a la vez** con AirPlay, si tienes UxPlay como receptor.
 - **Ajustes (⚙) en el panel y el popup:** nombre del dispositivo, comportamiento y actualizaciones.
 - **Actualizaciones** con un comando o un clic, con aviso automático opcional (desactivado salvo que lo actives).
 - Todo local: no usa la cuenta de iCloud, y solo se conecta a internet si activas la comprobación de actualizaciones.
@@ -374,6 +376,15 @@ hl.layer_rule({ match = { namespace = "^noctalia-panel$" }, animation = "slide" 
 ```
 
 Con `hyprland.conf`, usa la regla `layerrule` equivalente (ver la wiki de Hyprland). Afecta a todos los paneles de Noctalia: cada uno se desliza desde su borde más cercano, y el popup, desde abajo.
+
+### GNOME Shell y KDE Plasma
+
+`install.sh` instala también, si detecta el escritorio, un indicador para la barra con la batería del auricular más bajo. Al pulsarlo se ven las tres baterías, el modo de escucha, la detección de conversación y un botón para conectar los AirPods. Los dos son clientes de `airpodsd`, que tiene que estar en marcha.
+
+- **GNOME Shell** 45 o posterior: extensión `airpods-linux@canoojson.github.io`. GNOME carga las extensiones nuevas al iniciar sesión: tras instalar, cierra sesión y entra de nuevo, o actívala con `gnome-extensions enable airpods-linux@canoojson.github.io`.
+- **KDE Plasma 6**: plasmoide `io.github.airpodslinux`. Añádelo al panel con clic derecho → *Añadir o gestionar elementos gráficos* → *AirPods*.
+
+Para no instalarlos: `./install.sh --no-gnome --no-kde`. El popup al abrir la caja sigue siendo una notificación de escritorio en estos entornos.
 
 ### Integración con otros widgets
 

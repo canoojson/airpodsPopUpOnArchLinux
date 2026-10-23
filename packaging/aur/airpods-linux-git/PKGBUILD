@@ -44,6 +44,10 @@ package() {
     | install -Dm644 /dev/stdin "$pkgdir/usr/lib/systemd/user/airpodsd.service"
   install -d "$pkgdir/usr/share/airpods-linux/noctalia"
   cp -r integrations/noctalia/airpods "$pkgdir/usr/share/airpods-linux/noctalia/"
+  # GNOME Shell y KDE Plasma las cargan desde aquí para todos los usuarios.
+  install -d "$pkgdir/usr/share/gnome-shell/extensions" "$pkgdir/usr/share/plasma/plasmoids"
+  cp -r integrations/gnome/airpods-linux@canoojson.github.io "$pkgdir/usr/share/gnome-shell/extensions/"
+  cp -r integrations/kde/io.github.airpodslinux "$pkgdir/usr/share/plasma/plasmoids/"
   install -Dm644 README.md docs/findings.md -t "$pkgdir/usr/share/doc/$pkgname/"
   install -Dm644 CREDITS.md -t "$pkgdir/usr/share/licenses/$pkgname/"
 }

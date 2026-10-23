@@ -1,0 +1,8 @@
+{
+  "uuid": "airpods-linux@canoojson.github.io",
+  "name": "AirPods Linux",
+  "description": "Batería de los AirPods (también con la caja cerrada) y modo de escucha en la barra. Necesita airpodsd (airpods-linux).",
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "url": "https://github.com/canoojson/airpodsPopUpOnArchLinux",
+  "version-name": "1.0"
+}

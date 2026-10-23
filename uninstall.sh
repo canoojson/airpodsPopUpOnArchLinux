@@ -9,6 +9,10 @@ BIN_DIR="$HOME/.local/bin"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 UNIT="$UNIT_DIR/airpodsd.service"
 PLUGIN_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/noctalia/plugins/airpods"
+GNOME_UUID="airpods-linux@canoojson.github.io"
+GNOME_EXT="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$GNOME_UUID"
+KDE_ID="io.github.airpodslinux"
+KDE_APPLET="${XDG_DATA_HOME:-$HOME/.local/share}/plasma/plasmoids/$KDE_ID"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/airpods-linux"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/airpods-linux"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/airpods-linux"
@@ -45,6 +49,16 @@ if [ -e "$PLUGIN_DIR" ] && grep -q "^id = \"$PLUGIN_ID\"" "$PLUGIN_DIR/plugin.to
   command -v noctalia >/dev/null && noctalia msg plugins disable "$PLUGIN_ID" >/dev/null 2>&1
   if [ -L "$PLUGIN_DIR" ]; then rm -f "$PLUGIN_DIR"; else rm -rf "$PLUGIN_DIR"; fi
   ok "plugin de Noctalia eliminado (si tenías el widget en la barra, quítalo en Ajustes → Barra)"
+fi
+
+if [ -d "$GNOME_EXT" ] && [ ! -L "$GNOME_EXT" ]; then
+  command -v gnome-extensions >/dev/null && gnome-extensions disable "$GNOME_UUID" >/dev/null 2>&1
+  rm -rf "$GNOME_EXT"
+  ok "extensión de GNOME Shell eliminada"
+fi
+if [ -d "$KDE_APPLET" ] && [ ! -L "$KDE_APPLET" ]; then
+  kpackagetool6 -t Plasma/Applet -r "$KDE_ID" >/dev/null 2>&1 || rm -rf "$KDE_APPLET"
+  ok "plasmoide de KDE Plasma eliminado (si lo tenías en el panel, quítalo)"
 fi
 
 rm -rf "$DATA_DIR" "$RUNTIME_DIR" "$CACHE_DIR"
