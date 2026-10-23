@@ -16,7 +16,7 @@ Fecha: 2026-09-29. Capturas en `fixtures/*.jsonl` (una línea por anuncio visto,
 | Otros | `airpods-helper` 0.2.2 instalado, `airpods-daemon.service` activo (usuario); `blueman-applet` activo |
 
 AirPods emparejados: `XX:XX:XX:XX:XX:XX` (dirección de los AirPods, omitida), dirección **pública**, bonded (BR/EDR).
-Modalias `bluetooth:v004Cp2027d215C` → **product ID 0x2027** (la spec citaba `0x2720`: probablemente el mismo valor con los bytes invertidos). **[VERIFICAR]** contra el campo de modelo del anuncio 0x07.
+Modalias `bluetooth:v004Cp2027d215C` → **product ID 0x2027** (la spec citaba `0x2720`: el mismo valor con los bytes invertidos). ✅ **Confirmado** (2026-10-23): todos los anuncios largos de `fixtures/` llevan `27 20` en los bytes 3-4, es decir 0x2027 en little-endian, igual que el modalias.
 
 Captura sin root: `tools/capture.py` usa D-Bus de BlueZ (`SetDiscoveryFilter` LE + `DuplicateData`). BlueZ solo señala `ManufacturerData` cuando cambia; los cambios de RSSI marcan cada anuncio recibido. Para verdad a nivel HCI: `sudo btmon -w fixtures/<caso>.btsnoop` en paralelo.
 
@@ -72,7 +72,7 @@ Referencia iPhone: L 100 %, R 100 %, caja 85 %, caja sin cargar.
 - Nibble **bajo** = batería de la caja: `0x8` → 80 % (iPhone 85 %, la resolución es de 10 %).
 - Nibble **alto** = flags de carga. `0xB` = `1011`: bits 0 y 1 = los dos auriculares cargando, bit 2 = 0 (caja sin cargar ✔), bit 3 siempre 1 (desconocido). Al sacar el derecho se apaga su bit de carga, que es el 0 o el 1 según el punto de vista del emisor.
 
-**Byte de estado (5):** el bit 2 ("ambos en la caja") se apaga en los dos emisores ✔. Los bits 5 y 6 solo aparecen en el izquierdo (41:F3…), así que marcan "este es el izquierdo/primario" y no "este auricular está en la caja". El bit 0 está siempre a 1. **[VERIFICAR]** con los casos 3 y 4.
+**Byte de estado (5):** el bit 2 ("ambos en la caja") se apaga en los dos emisores ✔. Los bits 5 y 6 solo aparecen en el izquierdo (41:F3…), así que marcan "este es el izquierdo/primario" y no "este auricular está en la caja". El bit 0 está siempre a 1. ✅ **Confirmado** (2026-10-23) con los dos auriculares en la oreja: en el caso 3 emite el derecho con `0x0b` (bit 5 apagado), y una captura de `airpodsctl report` del 2026-10-23 tiene al izquierdo con `0x2b` (bit 5 encendido). En el caso 4 (caja cerrada) no hay anuncios largos.
 
 **Byte 8:** en el derecho pasa de `0x31` a `0x11` al salir. El bit 5 parece "este auricular en la caja", y los bits 0-2 son el contador de aperturas (1).
 
@@ -119,7 +119,7 @@ Captura de 10 min (22:40:40-22:50:40) sin tocar la caja, y luego 3 min con la ca
 | 22:51:15-22:52:23 (otra habitación) | CB:C9:60:F3:4E:2C | `07 11 06 da3519…` | **−76…−85** |
 
 - **La prueba de alejamiento confirma que el anuncio corto es de la caja:** la misma dirección y el mismo payload bajan ~25 dB al llevarla a otra habitación. Los Momentum 4 (conectados por BR/EDR, dirección pública) no aparecen en ninguna captura de `0x004C`.
-- La caja cerrada **sigue emitiendo al menos 17 min después de cerrarla**, de forma intermitente: huecos de 10-75 s y un silencio de ~4 min. **[VERIFICAR]** con `btmon`, porque BlueZ solo avisa cuando cambian el RSSI o los datos.
+- La caja cerrada **sigue emitiendo al menos 17 min después de cerrarla**, de forma intermitente: huecos de 10-75 s y un silencio de ~4 min. **[VERIFICAR]** con `btmon`, porque BlueZ solo avisa cuando cambian el RSSI o los datos (sesión guiada: `tools/btmon_session.sh caja-cerrada`).
 - La dirección y el payload rotan juntos (22:41→22:45). El payload corto no lleva batería legible. Sirve para saber que la caja está "presente/cerca" y poco más, y para asociarlo a nuestros AirPods hace falta el IRK.
 
 ## 9. Escenario 6: caja abierta sin auriculares
@@ -131,7 +131,7 @@ CB:C9:60:F3:4E:2C  07 11 06 0b74673c…                  (corto, RSSI −37…�
 
 - Con la caja vacía, **la batería de la caja no se puede leer** (`0xF`). Parece que la batería de la caja solo llega a través del anuncio de un auricular que esté dentro.
 - Solo emite un auricular (el primario), con estado `0x01`: fuera de la caja y no en la oreja.
-- La dirección del anuncio corto es **la misma** que en el escenario 4, pero el **payload ha cambiado** (`da3519…` → `0b7467…`). Así que el payload corto no depende solo de la rotación de dirección: cambia también con el estado (tapa y/o auriculares). Esto refuerza la hipótesis de que lo emite **la propia caja**. **[VERIFICAR]**
+- La dirección del anuncio corto es **la misma** que en el escenario 4, pero el **payload ha cambiado** (`da3519…` → `0b7467…`). Así que el payload corto no depende solo de la rotación de dirección: cambia también con el estado (tapa y/o auriculares). Esto refuerza la hipótesis de que lo emite **la propia caja**. ✅ **Confirmado**: baja ~25 dB al llevar la caja a otra habitación (§8) y, descifrado con nuestra clave, lleva la batería de la caja y la cabecera `29 20 … 5a 86` (§11).
 
 ## 9b. Escenario 7: caja abierta y vacía, enchufada al cargador
 
@@ -190,7 +190,7 @@ Batería con **resolución de 1 %**, frente a 10 % en la parte en claro.
 29 20 02 d5 ff ff 5a 86 00 00 00 00 8e 06 00 00     caja vacía, enchufada
 │     │  │  └──┴ auriculares (100 % cargando / no disponible)
 │     │  └ caja: bit 7 = cargando, bits 0-6 = %  → 0xd5 = 85 % cargando ✔
-│     └ flags de estado: 00 abierta+dentro, 08 cerrada+dentro, 01 abierta vacía, 09 ¿cerrada vacía?, 02 ¿vacía en carga?  [VERIFICAR]
+│     └ flags de estado: bit 3 = tapa cerrada, bit 1 = en el cargador (ver §12); bit 0 desconocido  [VERIFICAR: tools/btmon_session.sh flags]
 └ constante 0x2029 (¿ID de modelo de la caja?)
 ```
 
