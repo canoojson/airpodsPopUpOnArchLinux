@@ -31,6 +31,7 @@ class EqController:
         self.target: str | None = None      # salida de los AirPods a la que va el filtro
         self.applied: list[float] | None = None
         self._node_id: int | None = None
+        self._live_failures = 0
         self.available = shutil.which("pipewire") is not None and shutil.which("pw-cli") is not None
         self.conf_path = runtime_status_path().parent / "eq.conf"
 
@@ -38,11 +39,15 @@ class EqController:
         c = self.d.config
         return eq.gains_for(c.get("eq_preset") or "flat", c.get("eq_gains"))
 
+    def _effective(self) -> list[float]:
+        """Lo que debe sonar: desactivado, el filtro sigue (si ya existía) pero plano."""
+        return self.gains() if self.d.config.get("eq_enabled") else list(eq.FLAT)
+
     def state(self) -> dict:
         c = self.d.config
         return {"available": self.available,
                 "enabled": bool(c.get("eq_enabled")),
-                "active": self.running,
+                "active": self.running and bool(c.get("eq_enabled")),
                 "preset": c.get("eq_preset") or "flat",
                 "gains": self.gains(),
                 "bands": [f for _k, f, _q in eq.BANDS],
@@ -53,9 +58,9 @@ class EqController:
     def running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
-    def _wanted_target(self) -> str | None:
+    def _airpods_sink(self) -> str | None:
         d = self.d
-        if not (self.available and d.config.get("eq_enabled") and d.audio):
+        if not (self.available and d.audio):
             return None
         address = d.airpods_address()
         if not address or d.connected(address) is not True:
@@ -64,18 +69,22 @@ class EqController:
         return next((n for n in d.sinks.names() if n.startswith(prefix)), None)
 
     def tick(self) -> bool:
-        """Cada 2 s: el filtro solo existe con los AirPods conectados y el ecualizador activado."""
-        target = self._wanted_target()
+        """Cada 2 s. El filtro se crea al conectarse los AirPods con el ecualizador activado y
+        dura lo que dure la conexión: crearlo o quitarlo mueve el audio de las aplicaciones
+        (un corte, y Spotify llega a pausarse), así que activar, desactivar y cambiar de
+        preajuste se aplican en vivo sobre el filtro que ya existe."""
         if self.proc is not None and self.proc.poll() is not None:
             log.warning("el proceso del ecualizador ha terminado (código %s)", self.proc.returncode)
             self.proc = None
             self.target = None
             self.d.changed()
-        if target != self.target:
-            self.stop()
-            if target:
-                self._start(target)
-        elif self.running and self.gains() != self.applied:
+        sink = self._airpods_sink()
+        if sink != self.target and self.running:
+            self.stop()                      # se han desconectado (o es otra salida)
+        if not self.running:
+            if sink and self.d.config.get("eq_enabled"):
+                self._start(sink)
+        elif self._effective() != self.applied:
             self._apply_live()
         return True
 
@@ -84,7 +93,7 @@ class EqController:
         self.tick()
 
     def _start(self, target: str) -> None:
-        gains = self.gains()
+        gains = self._effective()
         try:
             self.conf_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             atomic_write_text(self.conf_path, eq.render_conf(target, gains))
@@ -95,12 +104,12 @@ class EqController:
             log.warning("no se pudo lanzar el ecualizador: %s", e)
             self.proc = None
             return
-        self.target, self.applied, self._node_id = target, gains, None
+        self.target, self.applied, self._node_id, self._live_failures = target, gains, None, 0
         log.info("ecualizador activado en %s (%s)", target, self.d.config.get("eq_preset") or "flat")
         self.d.changed()
 
     def _apply_live(self) -> None:
-        gains = self.gains()
+        gains = self._effective()
         if self._node_id is None:
             try:
                 dump = json.loads(subprocess.run(["pw-dump"], capture_output=True, text=True, timeout=5).stdout)
@@ -115,15 +124,21 @@ class EqController:
             except (OSError, subprocess.SubprocessError):
                 ok = False
         if ok:
-            self.applied = gains
-            log.info("ecualizador: %s", self.d.config.get("eq_preset") or "flat")
-        else:
-            # Sin el nodo (p. ej. aún arrancando) se relanza con la configuración nueva.
-            target = self.target
+            self.applied, self._live_failures = gains, 0
+            log.info("ecualizador: %s", (self.d.config.get("eq_preset") or "flat")
+                     if self.d.config.get("eq_enabled") else "desactivado (plano)")
+            self.d.changed()
+            return
+        # Puede que el nodo aún esté arrancando: se reintenta en el siguiente ciclo. Relanzar
+        # el proceso corta el audio, así que solo se hace si falla varias veces seguidas.
+        self._node_id = None
+        self._live_failures += 1
+        if self._live_failures >= 3:
+            log.warning("no se pudo cambiar el ecualizador en vivo; se relanza")
+            target, self._live_failures = self.target, 0
             self.stop()
-            if target:
+            if target and self.d.config.get("eq_enabled"):
                 self._start(target)
-        self.d.changed()
 
     def stop(self) -> None:
         if self.proc is not None:
@@ -132,7 +147,7 @@ class EqController:
                 self.proc.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
-            log.info("ecualizador desactivado")
+            log.info("filtro del ecualizador quitado")
         was = self.target
         self.proc, self.target, self.applied, self._node_id = None, None, None, None
         if was:

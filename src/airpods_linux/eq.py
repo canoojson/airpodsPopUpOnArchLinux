@@ -82,7 +82,9 @@ def _num(x: float) -> str:
 
 def render_conf(target: str, gains: list[float]) -> str:
     """Configuración del proceso `pipewire -c` con el filtro delante de `target`."""
-    nodes = [f'          {{ type = builtin name = pre label = mixer control = {{ "Gain 1" = {_num(preamp(gains))} }} }}']
+    # Preamplificación con "linear" (una entrada y una salida). Un "mixer" tiene 8 entradas y,
+    # sin declarar las del grafo, PipeWire no lo arranca ("can't start graph") y sale silencio.
+    nodes = [f'          {{ type = builtin name = pre label = linear control = {{ "Mult" = {_num(preamp(gains))} "Add" = 0.0 }} }}']
     links = ['          { output = "pre:Out" input = "b0:In" }']
     for i, ((kind, freq, q), g) in enumerate(zip(BANDS, gains)):
         nodes.append(f'          {{ type = builtin name = b{i} label = {kind} '
@@ -108,6 +110,8 @@ context.modules = [
         nodes = [
 {chr(10).join(nodes)}
         ]
+        inputs = [ "pre:In" ]
+        outputs = [ "b{len(BANDS) - 1}:Out" ]
         links = [
 {chr(10).join(links)}
         ]
@@ -133,7 +137,7 @@ context.modules = [
 
 def props_param(gains: list[float]) -> str:
     """Argumento de `pw-cli set-param <id> Props` para cambiar las ganancias en vivo."""
-    parts = [f'"pre:Gain 1" {_num(preamp(gains))}']
+    parts = [f'"pre:Mult" {_num(preamp(gains))}']
     parts += [f'"b{i}:Gain" {_num(g)}' for i, g in enumerate(gains)]
     return "{ params = [ " + " ".join(parts) + " ] }"
 

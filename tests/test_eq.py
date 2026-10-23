@@ -41,14 +41,16 @@ def test_configuracion_smart_filter():
     assert "filter.smart = true" in conf and 'node.name = "airpods_linux_eq"' in conf
     assert conf.count("label = bq_") == len(eq.BANDS)
     assert '{ output = "b8:Out" input = "b9:In" }' in conf
-    assert '"Gain" = 6.0' in conf and '"Gain 1" = 0.5012' in conf
+    assert '"Gain" = 6.0' in conf and 'label = linear control = { "Mult" = 0.5012' in conf
+    assert 'inputs = [ "pre:In" ]' in conf and 'outputs = [ "b9:Out" ]' in conf
+    assert "mixer" not in conf   # sin entradas declaradas, el mixer no arranca y deja el audio en silencio
     assert conf.count("{") == conf.count("}") and conf.count("[") == conf.count("]")
 
 
 def test_parametros_en_vivo():
     p = eq.props_param([1.5] + [0] * 9)
     assert p.startswith("{ params = [ ") and p.endswith(" ] }")
-    assert '"b0:Gain" 1.5' in p and '"b9:Gain" 0.0' in p and '"pre:Gain 1" 0.8414' in p
+    assert '"b0:Gain" 1.5' in p and '"b9:Gain" 0.0' in p and '"pre:Mult" 0.8414' in p
 
 
 def test_id_del_nodo_en_pw_dump():
