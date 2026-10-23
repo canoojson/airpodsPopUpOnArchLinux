@@ -4,6 +4,7 @@
 
 import GObject from 'gi://GObject';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 
@@ -25,11 +26,32 @@ const IFACE_XML = `
 const AirpodsProxy = Gio.DBusProxy.makeProxyWrapper(IFACE_XML);
 
 const LOW_BATTERY = 20;
+
+// Textos en castellano; con cualquier otro idioma, en inglés (como airpodsctl).
+const EN = {
+    'Desactivado': 'Off',
+    'Sonido ambiente': 'Transparency',
+    'Adaptativo': 'Adaptive',
+    'Cancelación de ruido': 'Noise Cancellation',
+    'Izquierdo': 'Left',
+    'Derecho': 'Right',
+    'Caja': 'Case',
+    'Conectar a este equipo': 'Connect to this computer',
+    'Modo de escucha': 'Listening mode',
+    'Detección de conversación': 'Conversation Awareness',
+    'Conectados': 'Connected',
+    'No conectados': 'Not connected',
+    'No emparejados': 'Not paired',
+    'No se pudo conectar': 'Could not connect',
+};
+const SPANISH = GLib.get_language_names()[0].toLowerCase().startsWith('es');
+const _ = text => (SPANISH ? text : EN[text] ?? text);
+
 const MODE_LABELS = {
-    off: 'Desactivado',
-    transparency: 'Sonido ambiente',
-    adaptive: 'Adaptativo',
-    noise: 'Cancelación de ruido',
+    off: _('Desactivado'),
+    transparency: _('Sonido ambiente'),
+    adaptive: _('Adaptativo'),
+    noise: _('Cancelación de ruido'),
 };
 
 function field(state, name) {
@@ -65,7 +87,7 @@ class AirpodsIndicator extends PanelMenu.Button {
         this._title.label.style = 'font-weight: bold;';
         this.menu.addMenuItem(this._title);
         this._rows = {};
-        for (const [key, name] of [['left', 'Izquierdo'], ['right', 'Derecho'], ['case', 'Caja']]) {
+        for (const [key, name] of [['left', _('Izquierdo')], ['right', _('Derecho')], ['case', _('Caja')]]) {
             const item = new PopupMenu.PopupMenuItem(name, {reactive: false});
             const value = new St.Label({text: '--', x_expand: true, x_align: Clutter.ActorAlign.END});
             item.add_child(value);
@@ -73,16 +95,16 @@ class AirpodsIndicator extends PanelMenu.Button {
             this.menu.addMenuItem(item);
         }
 
-        this._connectItem = new PopupMenu.PopupMenuItem('Conectar a este equipo');
+        this._connectItem = new PopupMenu.PopupMenuItem(_('Conectar a este equipo'));
         this._connectItem.connect('activate', () => this._connect());
         this.menu.addMenuItem(this._connectItem);
 
         this._modesSection = new PopupMenu.PopupMenuSection();
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem('Modo de escucha'));
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(_('Modo de escucha')));
         this.menu.addMenuItem(this._modesSection);
         this._modeItems = {};
 
-        this._conversation = new PopupMenu.PopupSwitchMenuItem('Detección de conversación', false);
+        this._conversation = new PopupMenu.PopupSwitchMenuItem(_('Detección de conversación'), false);
         this._conversation.connect('toggled', (_item, on) =>
             this._setSetting('conversational_awareness', on ? 'on' : 'off'));
         this.menu.addMenuItem(this._conversation);
@@ -125,7 +147,7 @@ class AirpodsIndicator extends PanelMenu.Button {
 
         this._label.text = lowest !== null ? ` ${lowest} %` : '';
         this._label.style = lowest !== null && lowest <= LOW_BATTERY ? 'color: #ff3b30;' : '';
-        const conn = st.connected === true ? 'Conectados' : st.connected === false ? 'No conectados' : 'No emparejados';
+        const conn = _(st.connected === true ? 'Conectados' : st.connected === false ? 'No conectados' : 'No emparejados');
         this._title.label.text = `${st.name || st.model_name || 'AirPods'} · ${conn}`;
         for (const key of ['left', 'right', 'case'])
             this._rows[key].text = batteryText(field(st, key));
@@ -165,7 +187,7 @@ class AirpodsIndicator extends PanelMenu.Button {
                 try {
                     p.wait_check_finish(res);
                 } catch {
-                    Main.notifyError('AirPods', 'No se pudo conectar');
+                    Main.notifyError('AirPods', _('No se pudo conectar'));
                 }
             });
         } catch (e) {

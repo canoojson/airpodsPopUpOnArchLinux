@@ -6,6 +6,8 @@
 -- Se cierra solo tras AUTO_CLOSE_S segundos, al cerrar la tapa o con Escape.
 
 local common = require("./lib/common.luau")
+-- Textos traducibles: el castellano es la clave; las traducciones están en translations/<idioma>.json.
+local T = noctalia.tr
 
 local AUTO_CLOSE_S = 10
 
@@ -22,7 +24,7 @@ local function connect()
     if result.exitCode == 0 then
       state.connected = true
     else
-      noctalia.notifyError("AirPods", "No se pudo conectar")
+      noctalia.notifyError("AirPods", T("No se pudo conectar"))
     end
     render()
   end, 15000)
@@ -50,8 +52,8 @@ local function pods(left, right)
   return ui.column({ key = "pods", gap = 12, align = "center" }, {
     ui.glyph({ key = "pods-img", name = "device-airpods", size = 76, color = "on_surface" }),
     ui.row({ key = "pods-bats", gap = 8, align = "end" }, {
-      batteryStack("left", left, "I"),
-      batteryStack("right", right, "D"),
+      batteryStack("left", left, T("I")),
+      batteryStack("right", right, T("D")),
     }),
   })
 end
@@ -73,14 +75,14 @@ function render()
 
   local footer
   if state.connected == true then
-    footer = common.pillButton("footer", "Listo", { fill = "on_surface/0.12", color = "on_surface",
+    footer = common.pillButton("footer", T("Listo"), { fill = "on_surface/0.12", color = "on_surface",
                                                     onClick = function() panel.close() end })
   elseif state.connected == false then
-    footer = common.pillButton("footer", connecting and "Conectando…" or "Conectar",
+    footer = common.pillButton("footer", connecting and T("Conectando…") or T("Conectar"),
                                { fill = "primary", color = "on_primary", onClick = connect })
   else
     -- connected == nil: los AirPods no están emparejados con este equipo.
-    footer = ui.label({ key = "footer", text = "Empareja los AirPods con este equipo para conectarlos",
+    footer = ui.label({ key = "footer", text = T("Empareja los AirPods con este equipo para conectarlos"),
                         fontSize = 13, color = common.SECONDARY, textAlign = "center" })
   end
 

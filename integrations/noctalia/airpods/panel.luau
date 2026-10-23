@@ -7,6 +7,8 @@
 local common = require("./lib/common.luau")
 local settings = require("./lib/settings.luau")
 local eqView = require("./lib/eq.luau")
+-- Textos traducibles: el castellano es la clave; las traducciones están en translations/<idioma>.json.
+local T = noctalia.tr
 
 local STATUS_KEY = "airpods.status"
 local TRACK_WIDTH = 288   -- ancho útil del scroll (panel - márgenes - barra - hueco derecho)
@@ -14,7 +16,7 @@ local HAS_ANC_TOOL = noctalia.commandExists("airpods-cli")
 
 -- Orden de los segmentos, de izquierda a derecha, como el control "Modo de escucha" de iOS.
 local MODE_ORDER = { "transparency", "adaptive", "noise" }
-local MODE_LABELS = { transparency = "Sonido ambiente", adaptive = "Adaptativo", noise = "Cancelación de ruido" }
+local MODE_LABELS = { transparency = T("Sonido ambiente"), adaptive = T("Adaptativo"), noise = T("Cancelación de ruido") }
 local MODE_GLYPHS = { transparency = "sun", adaptive = "wave-sine", noise = "target" }
 
 local status = nil      -- airpodsd
@@ -113,7 +115,7 @@ local function applyMode(mode)
       busy = false
       if result.exitCode ~= 0 then
         pendingMode = nil
-        noctalia.notifyError("AirPods", (result.stderr ~= "" and result.stderr) or "No se pudo cambiar el modo")
+        noctalia.notifyError("AirPods", (result.stderr ~= "" and result.stderr) or T("No se pudo cambiar el modo"))
       elseif pendingMode ~= nil and pendingMode ~= mode then
         applyMode(pendingMode)
         return
@@ -127,7 +129,7 @@ local function applyMode(mode)
     busy = false
     if result.exitCode ~= 0 then
       pendingMode = nil
-      noctalia.notifyError("AirPods", (result.stderr ~= "" and result.stderr) or "No se pudo cambiar el modo")
+      noctalia.notifyError("AirPods", (result.stderr ~= "" and result.stderr) or T("No se pudo cambiar el modo"))
       refresh()
       return
     end
@@ -153,7 +155,7 @@ local function connect()
   render()
   noctalia.runAsync({ "bluetoothctl", "connect", status.address }, function(result)
     connecting = false
-    if result.exitCode ~= 0 then noctalia.notifyError("AirPods", "No se pudo conectar") end
+    if result.exitCode ~= 0 then noctalia.notifyError("AirPods", T("No se pudo conectar")) end
     refresh()
   end, 15000)
 end
@@ -193,13 +195,13 @@ local function ancSection(children)
   else
     earsOut = anc.ear_left == false and anc.ear_right == false
   end
-  table.insert(children, common.sectionHeader("anc-title", "Control de ruido"))
+  table.insert(children, common.sectionHeader("anc-title", T("Control de ruido")))
   table.insert(children, ui.column({ key = "anc-card", radius = 14, fill = common.CARD, paddingV = 14, paddingH = 14 }, {
     ui.row({ key = "anc-cells", gap = 0 }, cells),
   }))
   -- Los AirPods ignoran el cambio de modo si no hay ningún auricular puesto.
   if earsOut then
-    table.insert(children, common.sectionFooter("anc-hint", "Ponte un auricular para cambiar el modo."))
+    table.insert(children, common.sectionFooter("anc-hint", T("Ponte un auricular para cambiar el modo.")))
   end
 end
 
@@ -213,15 +215,15 @@ local function conversationSection(children)
   local inCall = status.aap and status.aap.in_call == true
   table.insert(children, common.group("ca-group", {
     common.listRow("ca", {
-      glyph = "message-circle", title = "Detección de conversación",
-      subtitle = inCall and "Desactivada durante la llamada" or "Baja el volumen y deja pasar el sonido al hablar",
+      glyph = "message-circle", title = T("Detección de conversación"),
+      subtitle = inCall and T("Desactivada durante la llamada") or T("Baja el volumen y deja pasar el sonido al hablar"),
       trailing = ui.toggle({ key = "ca-toggle", checked = ca == true and not inCall, enabled = not caBusy and not inCall,
                              onChange = function(v)
         caBusy = true
         render()
         noctalia.runAsync({ ctl(), "feature", "conversational_awareness", v == "true" and "on" or "off" }, function(result)
           caBusy = false
-          if result.exitCode ~= 0 then noctalia.notifyError("AirPods", "No se pudo cambiar la detección de conversación") end
+          if result.exitCode ~= 0 then noctalia.notifyError("AirPods", T("No se pudo cambiar la detección de conversación")) end
           refresh()
         end, 8000)
       end }),
@@ -239,7 +241,7 @@ local function setAirplayVolume(v)
   noctalia.runAsync({ ctl(), "airplay", tostring(v) }, function(result)
     airplayBusy = false
     airplayDraft = nil
-    if result.exitCode ~= 0 then noctalia.notifyError("AirPods", "No se pudo cambiar el volumen de AirPlay") end
+    if result.exitCode ~= 0 then noctalia.notifyError("AirPods", T("No se pudo cambiar el volumen de AirPlay")) end
     refresh()
   end, 5000)
 end
@@ -247,9 +249,9 @@ end
 local function airplaySection(children)
   local ap = status.airplay
   if ap == nil or not ap.playing then return end
-  local what = ap.title and (ap.artist and (ap.title .. " · " .. ap.artist) or ap.title) or "Sonando a la vez que el PC"
+  local what = ap.title and (ap.artist and (ap.title .. " · " .. ap.artist) or ap.title) or T("Sonando a la vez que el PC")
   local rows = {
-    common.listRow("airplay", { glyph = "device-mobile", title = "iPhone por AirPlay", subtitle = what }),
+    common.listRow("airplay", { glyph = "device-mobile", title = T("iPhone por AirPlay"), subtitle = what }),
   }
   local volume = airplayDraft or ap.volume
   if volume ~= nil then
@@ -275,10 +277,10 @@ end
 local function eqSection(children)
   local e = status.eq
   if e == nil or e.available == false then return end
-  local label = (e.enabled and eqView.presetLabel(e)) or "Desactivado"
+  local label = (e.enabled and eqView.presetLabel(e)) or T("Desactivado")
   table.insert(children, common.group("eq-group", {
     common.listRow("eq-row", {
-      glyph = "adjustments-horizontal", title = "Ecualizador", subtitle = label,
+      glyph = "adjustments-horizontal", title = T("Ecualizador"), subtitle = label,
       trailing = ui.glyph({ name = "chevron-right", size = 16, color = common.SECONDARY }),
       onClick = function() view = "eq"; eqView.reset(); render() end,
     }),
@@ -286,8 +288,8 @@ local function eqSection(children)
 end
 
 local function fmtMinutes(m)
-  if m >= 60 then return string.format("%d h %02d min", math.floor(m / 60), m % 60) end
-  return m .. " min"
+  if m >= 60 then return T("{h} h {m} min", { h = math.floor(m / 60), m = string.format("%02d", m % 60) }) end
+  return T("{m} min", { m = m })
 end
 
 -- Gráfica de las últimas horas (el auricular más bajo en cada intervalo), como la de
@@ -310,8 +312,8 @@ local function historySection(children)
   local est = h.remaining_min or {}
   local remaining = nil
   if est.left ~= nil and est.right ~= nil then remaining = math.min(est.left, est.right) else remaining = est.left or est.right end
-  table.insert(children, common.sectionHeader("hist-title", "Últimas " .. tostring(h.hours) .. " h",
-                                              remaining and ("Quedan ~" .. fmtMinutes(remaining)) or nil))
+  table.insert(children, common.sectionHeader("hist-title", T("Últimas {hours} h", { hours = h.hours }),
+                                              remaining and T("Quedan ~{time}", { time = fmtMinutes(remaining) }) or nil))
   table.insert(children, ui.column({ key = "hist-card", radius = 14, fill = common.CARD, padding = 12 }, {
     ui.graph({ key = "hist-graph", values = values, height = 64, lineWidth = 2, fillOpacity = 0.35 }),
   }))
@@ -349,9 +351,9 @@ render = function()
       }))
     end
     table.insert(empty, ui.glyph({ key = "empty-icon", name = "device-airpods", size = 56, color = "on_surface/0.35" }))
-    table.insert(empty, ui.label({ key = "empty-title", text = status == nil and "airpodsd no está en ejecución" or "Sin datos todavía",
+    table.insert(empty, ui.label({ key = "empty-title", text = status == nil and T("airpodsd no está en ejecución") or T("Sin datos todavía"),
                                    fontSize = 17, fontWeight = "semibold" }))
-    table.insert(empty, ui.label({ key = "empty-hint", text = status == nil and "systemctl --user start airpodsd" or "Abre la caja cerca del equipo",
+    table.insert(empty, ui.label({ key = "empty-hint", text = status == nil and "systemctl --user start airpodsd" or T("Abre la caja cerca del equipo"),
                                    fontSize = 13, color = common.SECONDARY }))
     panel.render(ui.column({ padding = 24, gap = 12, align = "center", justify = "center", fill = "surface", radius = 24,
                              flexGrow = 1 }, empty))
@@ -361,16 +363,16 @@ render = function()
   local stale = common.isStale(status.last_seen)
   local lid = common.field(status, "lid_closed")
   local onCharger = common.field(status, "case_on_charger")
-  local caseSub = (lid == true and "Cerrada") or (lid == false and "Abierta") or ""
-  if onCharger then caseSub = (caseSub ~= "" and (caseSub .. " · ") or "") .. "Cargando" end
-  local connText = (status.connected == true and "Conectados") or (status.connected == false and "No conectados")
-                   or "No emparejados"
+  local caseSub = (lid == true and T("Cerrada")) or (lid == false and T("Abierta")) or ""
+  if onCharger then caseSub = (caseSub ~= "" and (caseSub .. " · ") or "") .. T("Cargando") end
+  local connText = (status.connected == true and T("Conectados")) or (status.connected == false and T("No conectados"))
+                   or T("No emparejados")
 
   local header = {
     ui.row({ key = "header", gap = 10, align = "center" }, {
       ui.column({ key = "title", gap = 2, flexGrow = 1 }, {
         ui.label({ text = status.name or status.model_name or "AirPods", fontSize = 22, fontWeight = "bold", maxLines = 1 }),
-        ui.label({ text = connText .. " · visto " .. common.ago(status.last_seen), fontSize = 12,
+        ui.label({ text = T("{state} · visto {ago}", { state = connText, ago = common.ago(status.last_seen) }), fontSize = 12,
                    color = stale and "error/0.8" or common.SECONDARY }),
       }),
       roundButton("gear", "settings", function() view = "settings"; render() end),
@@ -383,24 +385,24 @@ render = function()
     table.insert(header, ui.row({ key = "update-banner", gap = 8, align = "center", paddingH = 14, paddingV = 10,
                                   radius = 14, fill = "primary/0.14", onClick = function() view = "settings"; render() end }, {
       ui.glyph({ name = "download", size = 16, color = "primary" }),
-      ui.label({ text = "Versión " .. tostring(upd.latest) .. " disponible", fontSize = 13, color = "primary", flexGrow = 1 }),
+      ui.label({ text = T("Versión {version} disponible", { version = tostring(upd.latest) }), fontSize = 13, color = "primary", flexGrow = 1 }),
       ui.glyph({ name = "chevron-right", size = 16, color = "primary" }),
     }))
   end
 
   local children = {
     common.group("batteries", {
-      batteryRow("left", "device-airpods", "Izquierdo", common.where(status, "left"), common.field(status, "left"), stale),
-      batteryRow("right", "device-airpods", "Derecho", common.where(status, "right"), common.field(status, "right"), stale),
-      batteryRow("case", "device-airpods-case", "Caja", caseSub, common.field(status, "case"), stale),
+      batteryRow("left", "device-airpods", T("Izquierdo"), common.where(status, "left"), common.field(status, "left"), stale),
+      batteryRow("right", "device-airpods", T("Derecho"), common.where(status, "right"), common.field(status, "right"), stale),
+      batteryRow("case", "device-airpods-case", T("Caja"), caseSub, common.field(status, "case"), stale),
     }),
   }
 
   if status.connected == false then
-    table.insert(children, common.pillButton("connect", connecting and "Conectando…" or "Conectar a este equipo",
+    table.insert(children, common.pillButton("connect", connecting and T("Conectando…") or T("Conectar a este equipo"),
                                              { onClick = connect }))
   elseif status.connected == nil then
-    table.insert(children, common.sectionFooter("connect", "Empareja los AirPods con este equipo para conectarlos."))
+    table.insert(children, common.sectionFooter("connect", T("Empareja los AirPods con este equipo para conectarlos.")))
   end
   ancSection(children)
   conversationSection(children)

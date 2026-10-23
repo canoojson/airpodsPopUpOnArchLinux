@@ -3,6 +3,8 @@
 -- a partir del estado de airpodsd. Funciona también con la caja cerrada.
 
 local common = require("./lib/common.luau")
+-- Textos traducibles: el castellano es la clave; las traducciones están en translations/<idioma>.json.
+local T = noctalia.tr
 
 local PANEL_ID = "canoojson/airpods:panel"
 local STATUS_KEY = "airpods.status"
@@ -14,7 +16,7 @@ local function render(status)
   if level == nil then
     barWidget.setGlyphColor("on_surface/0.4")
     barWidget.setText("")
-    barWidget.setTooltip(status == nil and "airpodsd no está en ejecución" or "Sin datos de los AirPods todavía")
+    barWidget.setTooltip(status == nil and T("airpodsd no está en ejecución") or T("Sin datos de los AirPods todavía"))
     return
   end
 
@@ -25,11 +27,11 @@ local function render(status)
   barWidget.setText(level .. "%")
 
   local rows = {}
-  for _, item in ipairs({ { "left", "Izquierdo" }, { "right", "Derecho" }, { "case", "Caja" } }) do
+  for _, item in ipairs({ { "left", T("Izquierdo") }, { "right", T("Derecho") }, { "case", T("Caja") } }) do
     local b = common.field(status, item[1])
     table.insert(rows, { item[2], b and (b.level .. "%" .. (b.charging and " ⚡" or "")) or "—" })
   end
-  table.insert(rows, { "Visto", common.ago(status.last_seen) })
+  table.insert(rows, { T("Visto"), common.ago(status.last_seen) })
   barWidget.setTooltip(rows)
 end
 

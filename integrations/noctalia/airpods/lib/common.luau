@@ -3,6 +3,8 @@
 -- El estado lo escribe airpodsd en $XDG_RUNTIME_DIR/airpods-linux/status.json.
 
 local M = {}
+-- Textos traducibles: el castellano es la clave; las traducciones están en translations/<idioma>.json.
+local T = noctalia.tr
 
 M.LOW_BATTERY = 20
 M.STALE_S = 600 -- a partir de aquí el dato se muestra como "antiguo"
@@ -38,12 +40,12 @@ function M.nowS()
 end
 
 function M.ago(ts)
-  if ts == nil then return "nunca" end
+  if ts == nil then return T("nunca") end
   local s = math.max(0, math.floor(M.nowS() - ts))
-  if s < 60 then return "ahora" end
-  if s < 3600 then return "hace " .. math.floor(s / 60) .. " min" end
-  if s < 86400 then return "hace " .. math.floor(s / 3600) .. " h" end
-  return "hace " .. math.floor(s / 86400) .. " d"
+  if s < 60 then return T("ahora") end
+  if s < 3600 then return T("hace {n} min", { n = math.floor(s / 60) }) end
+  if s < 86400 then return T("hace {n} h", { n = math.floor(s / 3600) }) end
+  return T("hace {n} d", { n = math.floor(s / 86400) })
 end
 
 function M.isStale(ts)
@@ -70,10 +72,10 @@ function M.lowestPod(status)
 end
 
 function M.where(status, side)
-  if M.field(status, side .. "_in_ear") then return "En la oreja" end
+  if M.field(status, side .. "_in_ear") then return T("En la oreja") end
   local inCase = M.field(status, side .. "_in_case")
-  if inCase == true then return "En la caja" end
-  if inCase == false then return "Fuera" end
+  if inCase == true then return T("En la caja") end
+  if inCase == false then return T("Fuera") end
   return ""
 end
 

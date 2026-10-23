@@ -47,3 +47,21 @@ def test_catalogo_ingles_completo():
     assert not missing, f"faltan traducciones (tools/i18n_extract.py): {missing}"
     for msgid, msgstr in catalog.items():
         assert sorted(re.findall(r"\{[^}]*\}", msgid)) == sorted(re.findall(r"\{[^}]*\}", msgstr)), msgid
+
+
+def test_traducciones_del_plugin_de_noctalia():
+    """Noctalia carga siempre en.json y encima el idioma del usuario: es.json tiene que
+    cubrir todas las claves, o el panel saldría en inglés a quien lo usa en castellano."""
+    import json
+    plugin = ROOT / "integrations/noctalia/airpods"
+    keys = set()
+    for f in list(plugin.glob("*.luau")) + list(plugin.glob("lib/*.luau")):
+        keys |= set(re.findall(r'T\("([^"]*)"', f.read_text()))
+    from airpods_linux.eq import PRESETS
+    keys |= {label for label, _g in PRESETS.values()}   # llegan del daemon y se traducen en el panel
+    en = json.loads((plugin / "translations/en.json").read_text())
+    es = json.loads((plugin / "translations/es.json").read_text())
+    assert not keys - en.keys(), sorted(keys - en.keys())
+    assert es == {k: k for k in en}
+    for k, v in en.items():
+        assert sorted(re.findall(r"\{[^}]*\}", k)) == sorted(re.findall(r"\{[^}]*\}", v)), k

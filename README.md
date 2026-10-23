@@ -453,11 +453,13 @@ uv pip install --python .venv/bin/python -e . pytest
 .venv/bin/python -m pytest                    # sin hardware: vectores sintéticos
 ```
 
-- `src/airpods_linux/`: parser, cifrado, estado, escáner, daemon y CLI.
-- `integrations/noctalia/airpods/`: el plugin de Noctalia.
-- `tools/`: herramientas de captura de la fase de investigación.
+- `src/airpods_linux/`: parser, cifrado, estado, escáner, daemon (`daemon/`, un controlador por área) y CLI.
+- `integrations/`: el plugin de Noctalia, la extensión de GNOME Shell y el plasmoide de KDE Plasma.
+- `tools/`: herramientas de captura de la fase de investigación y `i18n_extract.py`.
 - `fixtures/`: capturas reales, solo con anuncios propios. `tests/test_fixtures_replay.py` las reproduce por el mismo camino que `airpodsd`, sin claves, también en CI.
 - `packaging/aur/`: los PKGBUILD de `airpods-linux` y `airpods-linux-git`.
+
+**Idiomas:** el texto original está en castellano; con cualquier otro idioma se usa el inglés. Los textos de Python se marcan con `_()` y se traducen en `src/airpods_linux/locale/en.po` (`tools/i18n_extract.py` lo actualiza y dice qué falta). Los del panel de Noctalia van con `T()` y se traducen en `integrations/noctalia/airpods/translations/en.json`; `es.json` repite las claves, porque Noctalia carga siempre `en.json`. Los logs de `airpodsd` no se traducen.
 
 Las releases se publican al subir una etiqueta `vX.Y.Z` (GitHub Actions). Si el repositorio tiene el secreto `AUR_SSH_PRIVATE_KEY`, el mismo workflow actualiza el paquete de AUR.
 

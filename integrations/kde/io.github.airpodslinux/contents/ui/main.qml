@@ -16,15 +16,29 @@ PlasmoidItem {
 
     readonly property string readCmd: "cat \"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/airpods-linux/status.json\""
     readonly property int lowBattery: 20
+    // Textos en castellano; con cualquier otro idioma, en inglés (como airpodsctl).
+    readonly property bool spanish: Qt.locale().name.startsWith("es")
+    readonly property var en: ({
+        "Desactivado": "Off", "Sonido ambiente": "Transparency", "Adaptativo": "Adaptive",
+        "Cancelación de ruido": "Noise Cancellation", "Izquierdo": "Left", "Derecho": "Right", "Caja": "Case",
+        "airpodsd no está en ejecución": "airpodsd is not running",
+        "Conectados a este equipo": "Connected to this computer", "No conectados": "Not connected",
+        "No emparejados con este equipo": "Not paired with this computer",
+        "Conectar a este equipo": "Connect to this computer", "Modo de escucha": "Listening mode",
+        "Detección de conversación": "Conversation Awareness"
+    })
     readonly property var modeLabels: ({
-        "off": "Desactivado",
-        "transparency": "Sonido ambiente",
-        "adaptive": "Adaptativo",
-        "noise": "Cancelación de ruido"
+        "off": tr("Desactivado"),
+        "transparency": tr("Sonido ambiente"),
+        "adaptive": tr("Adaptativo"),
+        "noise": tr("Cancelación de ruido")
     })
     property var st: null
     property bool busy: false
 
+    function tr(text) {
+        return spanish ? text : (en[text] || text)
+    }
     function field(name) {
         return (st && st.fields && st.fields[name]) ? st.fields[name].value : null
     }
@@ -82,9 +96,9 @@ PlasmoidItem {
     Plasmoid.status: (st && (lowestPod() >= 0 || field("case"))) ? PlasmaCore.Types.ActiveStatus
                                                                   : PlasmaCore.Types.PassiveStatus
     toolTipMainText: st ? (st.name || st.model_name || "AirPods") : "AirPods"
-    toolTipSubText: st ? ("Izquierdo " + batteryText(field("left")) + " · Derecho " + batteryText(field("right"))
-                          + " · Caja " + batteryText(field("case")))
-                       : "airpodsd no está en ejecución"
+    toolTipSubText: st ? (tr("Izquierdo") + " " + batteryText(field("left")) + " · " + tr("Derecho") + " "
+                          + batteryText(field("right")) + " · " + tr("Caja") + " " + batteryText(field("case")))
+                       : tr("airpodsd no está en ejecución")
 
     compactRepresentation: MouseArea {
         Layout.minimumWidth: row.implicitWidth
@@ -125,12 +139,12 @@ PlasmoidItem {
 
             PlasmaComponents3.Label {
                 visible: root.st === null
-                text: "airpodsd no está en ejecución\nsystemctl --user start airpodsd"
+                text: root.tr("airpodsd no está en ejecución") + "\nsystemctl --user start airpodsd"
                 opacity: 0.7
             }
 
             Repeater {
-                model: root.st ? [["left", "Izquierdo"], ["right", "Derecho"], ["case", "Caja"]] : []
+                model: root.st ? [["left", root.tr("Izquierdo")], ["right", root.tr("Derecho")], ["case", root.tr("Caja")]] : []
                 delegate: RowLayout {
                     required property var modelData
                     Layout.fillWidth: true
@@ -147,14 +161,14 @@ PlasmoidItem {
             PlasmaComponents3.Label {
                 visible: root.st !== null
                 opacity: 0.7
-                text: root.st ? (root.st.connected === true ? "Conectados a este equipo"
-                                 : root.st.connected === false ? "No conectados" : "No emparejados con este equipo") : ""
+                text: root.st ? root.tr(root.st.connected === true ? "Conectados a este equipo"
+                                         : root.st.connected === false ? "No conectados" : "No emparejados con este equipo") : ""
             }
 
             PlasmaComponents3.Button {
                 visible: root.st !== null && root.st.connected === false && !!root.st.address
                 enabled: !root.busy
-                text: "Conectar a este equipo"
+                text: root.tr("Conectar a este equipo")
                 icon.name: "network-connect"
                 onClicked: {
                     root.busy = true
@@ -165,7 +179,7 @@ PlasmoidItem {
             Kirigami.Heading {
                 visible: root.ownAap() && root.st.aap.modes && root.st.aap.modes.length > 0
                 level: 5
-                text: "Modo de escucha"
+                text: root.tr("Modo de escucha")
                 Layout.topMargin: Kirigami.Units.smallSpacing
             }
             Flow {
@@ -187,7 +201,7 @@ PlasmoidItem {
 
             PlasmaComponents3.Switch {
                 visible: root.ownAap() && root.st.aap.settings && root.st.aap.settings.conversational_awareness !== undefined
-                text: "Detección de conversación"
+                text: root.tr("Detección de conversación")
                 checked: root.ownAap() && root.st.aap.settings.conversational_awareness === true && !root.st.aap.in_call
                 enabled: !root.busy && root.ownAap() && !root.st.aap.in_call
                 onToggled: root.ctl(["feature", "conversational_awareness", checked ? "on" : "off"])
