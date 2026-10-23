@@ -59,3 +59,23 @@ def test_id_del_nodo_en_pw_dump():
             {"id": 9, "type": "PipeWire:Interface:Node", "info": {"props": {"node.name": "airpods_linux_eq"}}}]
     assert eq.find_node_id(dump) == 9
     assert eq.find_node_id([]) is None
+
+
+def test_modo_sencillo_graves_medios_agudos():
+    bass = eq.simple_gains([6, 0, 0])
+    assert bass[:2] == [6.0, 6.0] and bass[5:] == [0.0] * 5          # graves: solo las bandas bajas
+    treble = eq.simple_gains([0, 0, 6])
+    assert treble[:6] == [0.0] * 6 and treble[-2:] == [6.0, 6.0]
+    mid = eq.simple_gains([0, -6, 0])
+    assert mid[5] == -6.0 and mid[0] == 0.0 and mid[-1] == 0.0
+    assert max(eq.simple_gains([12, 12, 12])) == eq.GAIN_MAX         # solapes recortados al máximo
+
+
+def test_modo_por_defecto_y_ganancias_segun_configuracion():
+    assert eq.mode({}) == eq.SIMPLE                                   # nuevo: como en iOS
+    assert eq.mode({"eq_preset": "custom", "eq_gains": [1] * 10}) == eq.ADVANCED   # ya tenía ajustes avanzados
+    cfg = {"eq_mode": "simple", "eq_simple": [6, 0, 0], "eq_preset": "rock"}
+    assert eq.config_gains(cfg) == eq.simple_gains([6, 0, 0])         # cada modo con sus ajustes
+    cfg["eq_mode"] = "advanced"
+    assert eq.config_gains(cfg) == eq.gains_for("rock", None)
+    assert eq.simple_values("roto") == [0.0, 0.0, 0.0]

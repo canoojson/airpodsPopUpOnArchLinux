@@ -3,7 +3,7 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
-#: src/airpods_linux/cli.py:621
+#: src/airpods_linux/cli.py:652
 msgid "0-150 (sin argumento: el actual)"
 msgstr "0-150 (no argument: current value)"
 
@@ -14,6 +14,10 @@ msgstr "Update with: airpodsctl update (or from the panel's ⚙)"
 #: eq.PRESETS
 msgid "Acústica"
 msgstr "Acoustic"
+
+#: src/airpods_linux/cli.py:503
+msgid "Agudos"
+msgstr "Treble"
 
 #: src/airpods_linux/cli.py:426
 msgid "AirPlay (UxPlay): volumen {volume} %"
@@ -55,7 +59,7 @@ msgstr "unknown setting: {name} (available: {values})"
 msgid "Ajuste desconocido; posibles: {values}"
 msgstr "Unknown setting; possible: {values}"
 
-#: src/airpods_linux/cli.py:575
+#: src/airpods_linux/cli.py:606
 msgid "ajustes de los AirPods por AAP (sin argumentos: lista)"
 msgstr "AirPods settings over AAP (no arguments: list)"
 
@@ -75,11 +79,15 @@ msgstr "earbud"
 msgid "auricular, sin cifrar"
 msgstr "earbud, unencrypted"
 
-#: src/airpods_linux/eq.py:75
+#: src/airpods_linux/eq.py:116
 msgid "banda desconocida: {band} (posibles: {values})"
 msgstr "unknown band: {band} (possible: {values})"
 
-#: src/airpods_linux/cli.py:598
+#: src/airpods_linux/cli.py:505
+msgid "Bandas resultantes:"
+msgstr "Resulting bands:"
+
+#: src/airpods_linux/cli.py:629
 msgid "busca una versión nueva y actualiza"
 msgstr "check for a new version and update"
 
@@ -95,7 +103,7 @@ msgstr "case"
 msgid "Caja de los AirPods con batería baja"
 msgstr "AirPods case battery low"
 
-#: src/airpods_linux/cli.py:610
+#: src/airpods_linux/cli.py:641
 msgid "cambia el nombre de los AirPods en este equipo ('' = original)"
 msgstr "rename the AirPods on this computer ('' = original)"
 
@@ -103,7 +111,7 @@ msgstr "rename the AirPods on this computer ('' = original)"
 msgid "cancelación de ruido con un solo auricular"
 msgstr "noise cancellation with one earbud"
 
-#: src/airpods_linux/cli.py:593
+#: src/airpods_linux/cli.py:624
 msgid "claves de proximidad (AAP)"
 msgstr "proximity keys (AAP)"
 
@@ -119,7 +127,7 @@ msgstr "Keys for {address} saved to {path} (0600), via airpodsd"
 msgid "Claves para {address} en {path}"
 msgstr "Keys for {address} in {path}"
 
-#: src/airpods_linux/cli.py:583
+#: src/airpods_linux/cli.py:614
 msgid "columnas de la gráfica"
 msgstr "chart columns"
 
@@ -143,19 +151,19 @@ msgstr "conversation awareness is off during calls; it will be on after you hang
 msgid "durante una llamada la detección de conversación está desactivada; al colgar quedará desactivada"
 msgstr "conversation awareness is off during calls; it will stay off after you hang up"
 
-#: src/airpods_linux/cli.py:470
+#: src/airpods_linux/cli.py:494
 msgid "Ecualizador activado (se aplica al conectar los AirPods) · {preset}"
 msgstr "Equalizer on (applied when the AirPods connect) · {preset}"
 
-#: src/airpods_linux/cli.py:472
+#: src/airpods_linux/cli.py:496
 msgid "Ecualizador activado · {preset}"
 msgstr "Equalizer on · {preset}"
 
-#: src/airpods_linux/cli.py:614
+#: src/airpods_linux/cli.py:645
 msgid "ecualizador de los AirPods (sin argumentos: el actual)"
 msgstr "AirPods equalizer (no arguments: current)"
 
-#: src/airpods_linux/cli.py:468
+#: src/airpods_linux/cli.py:492
 msgid "Ecualizador desactivado · {preset}"
 msgstr "Equalizer off · {preset}"
 
@@ -187,7 +195,7 @@ msgstr "in ear"
 msgid "Error: {error}"
 msgstr "Error: {error}"
 
-#: src/airpods_linux/cli.py:587
+#: src/airpods_linux/cli.py:618
 msgid "escanea por ventanas y muestra cada cambio"
 msgstr "scan in windows and show every change"
 
@@ -207,7 +215,7 @@ msgstr "expects a number from 0 to 100"
 msgid "Esta es una instalación de desarrollo: actualiza con git pull."
 msgstr "This is a development install: update with git pull."
 
-#: src/airpods_linux/cli.py:556
+#: src/airpods_linux/cli.py:587
 msgid "estado actual o último conocido"
 msgstr "current or last known state"
 
@@ -223,7 +231,11 @@ msgstr "dbus-python or PyGObject is missing: {error}"
 msgid "fuera"
 msgstr "out"
 
-#: src/airpods_linux/cli.py:626
+#: src/airpods_linux/cli.py:503
+msgid "Graves"
+msgstr "Bass"
+
+#: src/airpods_linux/cli.py:657
 msgid "guardar en un fichero en vez de mostrarlo"
 msgstr "save to a file instead of printing it"
 
@@ -247,11 +259,11 @@ msgstr "{n} s ago"
 msgid "Hay varios AirPods emparejados; elige uno:\n{lines}\n  airpodsctl keys fetch <dirección>"
 msgstr "Several AirPods are paired; pick one:\n{lines}\n  airpodsctl keys fetch <address>"
 
-#: src/airpods_linux/cli.py:581
+#: src/airpods_linux/cli.py:612
 msgid "historial de batería y tiempo restante estimado"
 msgstr "battery history and estimated time left"
 
-#: src/airpods_linux/cli.py:624
+#: src/airpods_linux/cli.py:655
 msgid "informe anonimizado para abrir un issue (modelos nuevos, fallos)"
 msgstr "anonymized report for opening an issue (new models, bugs)"
 
@@ -271,7 +283,7 @@ msgstr "Left"
 msgid "Izquierdo {left} · Derecho {right} · Caja {case}"
 msgstr "Left {left} · Right {right} · Case {case}"
 
-#: src/airpods_linux/cli.py:563
+#: src/airpods_linux/cli.py:594
 msgid "JSON para un módulo custom de Waybar"
 msgstr "JSON for a Waybar custom module"
 
@@ -282,6 +294,10 @@ msgstr "The keys for {address} were already saved and match the AirPods"
 #: src/airpods_linux/aap.py:241
 msgid "los AirPods no enviaron las claves; si airpods-daemon (airpods-helper) está activo ocupa el canal AAP: systemctl --user stop airpods-daemon y reintenta"
 msgstr "the AirPods did not send the keys; if airpods-daemon (airpods-helper) is running it holds the AAP channel: systemctl --user stop airpods-daemon and retry"
+
+#: src/airpods_linux/cli.py:503
+msgid "Medios"
+msgstr "Mids"
 
 #: eq.PRESETS
 msgid "Menos agudos"
@@ -299,7 +315,7 @@ msgstr "microphone"
 msgid "modo de escucha"
 msgstr "listening mode"
 
-#: src/airpods_linux/cli.py:571
+#: src/airpods_linux/cli.py:602
 msgid "modo de escucha: off, noise, transparency, adaptive"
 msgstr "listening mode: off, noise, transparency, adaptive"
 
@@ -323,7 +339,7 @@ msgstr "adaptive mode level (0 = more ambient sound)"
 msgid "No encuentro AirPods emparejados. Emparéjalos primero o indica su dirección: airpodsctl keys fetch AA:BB:CC:DD:EE:FF"
 msgstr "No paired AirPods found. Pair them first or give their address: airpodsctl keys fetch AA:BB:CC:DD:EE:FF"
 
-#: src/airpods_linux/cli.py:540
+#: src/airpods_linux/cli.py:571
 msgid "No encuentro los AirPods emparejados"
 msgstr "Paired AirPods not found"
 
@@ -331,7 +347,7 @@ msgstr "Paired AirPods not found"
 msgid "No hay claves guardadas"
 msgstr "No saved keys"
 
-#: src/airpods_linux/cli.py:601
+#: src/airpods_linux/cli.py:632
 msgid "no preguntar"
 msgstr "don't ask"
 
@@ -339,7 +355,7 @@ msgstr "don't ask"
 msgid "no se pudo abrir L2CAP 0x1001 ({error}); ¿están conectados los AirPods?"
 msgstr "could not open L2CAP 0x1001 ({error}); are the AirPods connected?"
 
-#: src/airpods_linux/cli.py:545
+#: src/airpods_linux/cli.py:576
 msgid "No se pudo cambiar el nombre: {error}"
 msgstr "Could not rename: {error}"
 
@@ -355,7 +371,7 @@ msgstr "Could not change it: {error}"
 msgid "No se pudo consultar BlueZ: {error}"
 msgstr "Could not query BlueZ: {error}"
 
-#: src/airpods_linux/cli.py:498
+#: src/airpods_linux/cli.py:529
 msgid "No se pudo consultar GitHub: {error}"
 msgstr "Could not reach GitHub: {error}"
 
@@ -371,11 +387,11 @@ msgstr "Could not scan: {error}"
 msgid "Nocturno"
 msgstr "Late Night"
 
-#: src/airpods_linux/cli.py:547
+#: src/airpods_linux/cli.py:578
 msgid "Nombre en este equipo: {name}"
 msgstr "Name on this computer: {name}"
 
-#: src/airpods_linux/cli.py:503
+#: src/airpods_linux/cli.py:534
 msgid "Nueva versión disponible: {latest} (tienes {current})"
 msgstr "New version available: {latest} (you have {current})"
 
@@ -383,11 +399,11 @@ msgstr "New version available: {latest} (you have {current})"
 msgid "nunca"
 msgstr "never"
 
-#: src/airpods_linux/config.py:62
+#: src/airpods_linux/config.py:64
 msgid "opción desconocida: {key} (disponibles: {values})"
 msgstr "unknown option: {key} (available: {values})"
 
-#: src/airpods_linux/cli.py:464
+#: src/airpods_linux/cli.py:488
 msgid "Personalizado"
 msgstr "Custom"
 
@@ -395,7 +411,7 @@ msgstr "Custom"
 msgid "Plano"
 msgstr "Flat"
 
-#: src/airpods_linux/cli.py:604
+#: src/airpods_linux/cli.py:635
 msgid "preferencias de airpodsd (sin argumentos tras get: todas)"
 msgstr "airpodsd preferences (no arguments after get: all)"
 
@@ -407,13 +423,17 @@ msgstr "Review it and paste it at {url}"
 msgid "Rock"
 msgstr "Rock"
 
-#: src/airpods_linux/cli.py:625
+#: src/airpods_linux/cli.py:656
 msgid "segundos capturando anuncios (0 = no escanear)"
 msgstr "seconds capturing adverts (0 = don't scan)"
 
-#: src/airpods_linux/cli.py:559
+#: src/airpods_linux/cli.py:590
 msgid "segundos máximos escuchando (0 = solo caché; por defecto 30, o 0 con --format/--waybar). La caja cerrada anuncia cada 10-60 s"
 msgstr "maximum seconds listening (0 = cache only; 30 by default, or 0 with --format/--waybar). The closed case advertises every 10-60 s"
+
+#: src/airpods_linux/cli.py:486
+msgid "Sencillo"
+msgstr "Simple"
 
 #: src/airpods_linux/cli.py:147
 msgid "Sin claves: batería al 10 % y sin datos con la caja cerrada. Ejecuta: airpodsctl keys fetch"
@@ -439,7 +459,7 @@ msgstr "No data yet. Open the case near the PC or wait for a case advert."
 msgid "Sin historial todavía: airpodsd lo va guardando mientras recibe datos."
 msgstr "No history yet: airpodsd records it as data comes in."
 
-#: src/airpods_linux/cli.py:599
+#: src/airpods_linux/cli.py:630
 msgid "solo comprobar"
 msgstr "only check"
 
@@ -455,33 +475,37 @@ msgstr "lid open"
 msgid "tapa cerrada"
 msgstr "lid closed"
 
-#: src/airpods_linux/cli.py:501
+#: src/airpods_linux/cli.py:532
 msgid "Tienes la última versión ({version})."
 msgstr "You have the latest version ({version})."
 
-#: src/airpods_linux/cli.py:561
+#: src/airpods_linux/cli.py:592
 msgid "una línea con marcadores: {left} {right} {case} {min} {left_chg} {name} {mode} {ago}  (p. ej. '{left}%% {right}%%')"
 msgstr "one line with placeholders: {left} {right} {case} {min} {left_chg} {name} {mode} {ago}  (e.g. '{left}%% {right}%%')"
 
-#: src/airpods_linux/cli.py:566
+#: src/airpods_linux/cli.py:597
 msgid "una línea por cada cambio (barras de estado con exec continuo)"
 msgstr "one line per change (status bars with continuous exec)"
 
-#: src/airpods_linux/cli.py:523
+#: src/airpods_linux/cli.py:554
 msgid "uso: airpodsctl config set <opción> <valor>"
 msgstr "usage: airpodsctl config set <option> <value>"
 
-#: src/airpods_linux/cli.py:454
-msgid "uso: airpodsctl eq [on|off|preset <nombre>|set <banda> <dB>|reset]"
-msgstr "usage: airpodsctl eq [on|off|preset <name>|set <band> <dB>|reset]"
+#: src/airpods_linux/cli.py:473
+msgid "uso: airpodsctl eq [on|off|simple [G M A]|advanced|preset <nombre>|set <banda> <dB>|reset]"
+msgstr "usage: airpodsctl eq [on|off|simple [B M T]|advanced|preset <name>|set <band> <dB>|reset]"
 
-#: src/airpods_linux/cli.py:438
+#: src/airpods_linux/cli.py:453
 msgid "uso: airpodsctl eq preset <nombre>"
 msgstr "usage: airpodsctl eq preset <name>"
 
-#: src/airpods_linux/cli.py:443
+#: src/airpods_linux/cli.py:458
 msgid "uso: airpodsctl eq set <banda> <dB>   (banda: 0-9 o frecuencia, p. ej. 250 o 4k)"
 msgstr "usage: airpodsctl eq set <band> <dB>   (band: 0-9 or frequency, e.g. 250 or 4k)"
+
+#: src/airpods_linux/cli.py:445
+msgid "uso: airpodsctl eq simple [<graves> <medios> <agudos>]   (dB, de -12 a 12)"
+msgstr "usage: airpodsctl eq simple [<bass> <mids> <treble>]   (dB, from -12 to 12)"
 
 #: src/airpods_linux/cli.py:415
 msgid "UxPlay no está sonando"
@@ -499,6 +523,10 @@ msgstr "UxPlay is not playing: no volume to change"
 msgid "valor de 0 a 100"
 msgstr "value from 0 to 100"
 
+#: src/airpods_linux/cli.py:439
+msgid "valor no válido: {value} (dB, de -12 a 12)"
+msgstr "invalid value: {value} (dB, from -12 to 12)"
+
 #: src/airpods_linux/aap.py:64
 msgid "valores posibles: {values}"
 msgstr "possible values: {values}"
@@ -515,7 +543,7 @@ msgstr "Volume from 0 to 150"
 msgid "volumen de los avisos sonoros"
 msgstr "chime volume"
 
-#: src/airpods_linux/cli.py:620
+#: src/airpods_linux/cli.py:651
 msgid "volumen del iPhone por AirPlay (UxPlay), aparte del resto"
 msgstr "volume of the iPhone over AirPlay (UxPlay), separate from the rest"
 
@@ -523,7 +551,7 @@ msgstr "volume of the iPhone over AirPlay (UxPlay), separate from the rest"
 msgid "volumen deslizando en el tallo"
 msgstr "volume swipe on the stem"
 
-#: src/airpods_linux/config.py:55
+#: src/airpods_linux/config.py:57
 msgid "{key} espera true/false"
 msgstr "{key} expects true/false"
 
@@ -535,7 +563,7 @@ msgstr "{model} · seen {ago}"
 msgid "{name}: enviado, sin confirmar (algunos ajustes necesitan un auricular puesto)"
 msgstr "{name}: sent, not confirmed (some settings need an earbud in)"
 
-#: src/airpods_linux/cli.py:511
+#: src/airpods_linux/cli.py:542
 msgid "¿Actualizar ahora? [s/N] "
 msgstr "Update now? [y/N] "
 

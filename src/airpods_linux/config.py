@@ -18,6 +18,8 @@ DEFAULTS = {
     "eq_enabled": False,         # ecualizador de los AirPods (filter-chain de PipeWire)
     "eq_preset": "flat",         # preajuste de eq.PRESETS, o "custom" con eq_gains
     "eq_gains": None,            # ganancias personalizadas (dB), una por banda
+    "eq_mode": None,             # "simple" (graves, medios, agudos) o "advanced"; ver eq.mode()
+    "eq_simple": None,           # [graves, medios, agudos] del modo sencillo (dB)
     "airplay_hint": True,        # con UxPlay: recordar que por AirPlay suenan el iPhone y el PC a la vez
     "conversation_suspended": False,    # interno: en modo llamada (la detección está desactivada)
     "conversation_pref": None,          # interno: detección de conversación que quiere el usuario fuera de llamadas

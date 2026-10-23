@@ -435,6 +435,12 @@ function eqBandEnd6() eqView.bandReleased(6) end
 function eqBandEnd7() eqView.bandReleased(7) end
 function eqBandEnd8() eqView.bandReleased(8) end
 function eqBandEnd9() eqView.bandReleased(9) end
+function eqSimple1(v) eqView.simpleChanged(1, v) end
+function eqSimple2(v) eqView.simpleChanged(2, v) end
+function eqSimple3(v) eqView.simpleChanged(3, v) end
+function eqSimpleEnd1() eqView.simpleReleased(1) end
+function eqSimpleEnd2() eqView.simpleReleased(2) end
+function eqSimpleEnd3() eqView.simpleReleased(3) end
 
 noctalia.state.watch(STATUS_KEY, function(value)
   status = common.decode(value)

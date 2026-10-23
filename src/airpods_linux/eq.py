@@ -34,6 +34,16 @@ PRESETS = {
 }
 CUSTOM = "custom"
 
+# Modo sencillo, como el de iOS: tres controles (graves, medios, agudos), cada uno con un
+# peso por banda para que se solapen suavemente, como un control de tonos.
+SIMPLE, ADVANCED = "simple", "advanced"
+SIMPLE_CONTROLS = ("bass", "mid", "treble")
+SIMPLE_WEIGHTS = {
+    "bass": [1.0, 1.0, 0.8, 0.4, 0.1, 0, 0, 0, 0, 0],
+    "mid": [0, 0, 0, 0.3, 0.8, 1.0, 0.8, 0.3, 0, 0],
+    "treble": [0, 0, 0, 0, 0, 0, 0.2, 0.7, 1.0, 1.0],
+}
+
 
 def clamp(db: float) -> float:
     return round(min(GAIN_MAX, max(GAIN_MIN, float(db))), 1)
@@ -47,6 +57,37 @@ def gains_for(preset: str, custom: list | None) -> list[float]:
         except (TypeError, ValueError):
             pass
     return [float(g) for g in PRESETS.get(preset, PRESETS["flat"])[1]]
+
+
+def simple_values(raw) -> list[float]:
+    """[graves, medios, agudos] guardados, o planos si no son válidos."""
+    if isinstance(raw, list) and len(raw) == len(SIMPLE_CONTROLS):
+        try:
+            return [clamp(v) for v in raw]
+        except (TypeError, ValueError):
+            pass
+    return [0.0] * len(SIMPLE_CONTROLS)
+
+
+def simple_gains(values: list[float]) -> list[float]:
+    """Ganancias de las 10 bandas a partir de graves, medios y agudos."""
+    return [clamp(sum(v * SIMPLE_WEIGHTS[c][i] for c, v in zip(SIMPLE_CONTROLS, values)))
+            for i in range(len(BANDS))]
+
+
+def mode(cfg: dict) -> str:
+    """Modo del ecualizador. Sin elegir, el sencillo, salvo que ya hubiera ajustes avanzados."""
+    m = cfg.get("eq_mode")
+    if m in (SIMPLE, ADVANCED):
+        return m
+    return ADVANCED if (cfg.get("eq_preset") or "flat") != "flat" else SIMPLE
+
+
+def config_gains(cfg: dict) -> list[float]:
+    """Ganancias de las 10 bandas según la configuración (modo, preajuste, ajustes)."""
+    if mode(cfg) == SIMPLE:
+        return simple_gains(simple_values(cfg.get("eq_simple")))
+    return gains_for(cfg.get("eq_preset") or "flat", cfg.get("eq_gains"))
 
 
 def preamp(gains: list[float]) -> float:

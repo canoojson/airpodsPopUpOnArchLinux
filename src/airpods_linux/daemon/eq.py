@@ -37,7 +37,13 @@ class EqController:
 
     def gains(self) -> list[float]:
         c = self.d.config
-        return eq.gains_for(c.get("eq_preset") or "flat", c.get("eq_gains"))
+        return eq.config_gains(c)
+
+    def _describe(self) -> str:
+        c = self.d.config
+        if eq.mode(c) == eq.SIMPLE:
+            return "sencillo, graves/medios/agudos {:+g}/{:+g}/{:+g} dB".format(*eq.simple_values(c.get("eq_simple")))
+        return c.get("eq_preset") or "flat"
 
     def _effective(self) -> list[float]:
         """Lo que debe sonar: desactivado, el filtro sigue (si ya existía) pero plano."""
@@ -49,6 +55,8 @@ class EqController:
                 "enabled": bool(c.get("eq_enabled")),
                 "active": self.running and bool(c.get("eq_enabled")),
                 "preset": c.get("eq_preset") or "flat",
+                "mode": eq.mode(c),
+                "simple": eq.simple_values(c.get("eq_simple")),
                 "gains": self.gains(),
                 "bands": [f for _k, f, _q in eq.BANDS],
                 "presets": [[k, label] for k, (label, _g) in eq.PRESETS.items()],
@@ -105,7 +113,7 @@ class EqController:
             self.proc = None
             return
         self.target, self.applied, self._node_id, self._live_failures = target, gains, None, 0
-        log.info("ecualizador activado en %s (%s)", target, self.d.config.get("eq_preset") or "flat")
+        log.info("ecualizador activado en %s (%s)", target, self._describe())
         self.d.changed()
 
     def _apply_live(self) -> None:
@@ -125,8 +133,7 @@ class EqController:
                 ok = False
         if ok:
             self.applied, self._live_failures = gains, 0
-            log.info("ecualizador: %s", (self.d.config.get("eq_preset") or "flat")
-                     if self.d.config.get("eq_enabled") else "desactivado (plano)")
+            log.info("ecualizador: %s", self._describe() if self.d.config.get("eq_enabled") else "desactivado (plano)")
             self.d.changed()
             return
         # Puede que el nodo aún esté arrancando: se reintenta en el siguiente ciclo. Relanzar
