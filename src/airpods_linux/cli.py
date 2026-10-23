@@ -421,6 +421,54 @@ def cmd_airplay(args) -> int:
     return 0
 
 
+def cmd_eq(args) -> int:
+    from . import config, eq
+    cfg = config.load()
+    action, rest = args.action, args.args
+    if action in ("on", "off"):
+        cfg["eq_enabled"] = action == "on"
+    elif action == "preset":
+        if len(rest) != 1 or rest[0] not in eq.PRESETS:
+            sys.exit("uso: airpodsctl eq preset <nombre>\n  " +
+                     "\n  ".join(f"{k:14s} {label}" for k, (label, _g) in eq.PRESETS.items()))
+        cfg["eq_preset"], cfg["eq_enabled"] = rest[0], True
+    elif action == "set":
+        if len(rest) != 2:
+            sys.exit("uso: airpodsctl eq set <banda> <dB>   (banda: 0-9 o frecuencia, p. ej. 250 o 4k)")
+        try:
+            i, db = eq.band_index(rest[0]), eq.clamp(float(rest[1].replace(",", ".")))
+        except ValueError as e:
+            sys.exit(str(e))
+        gains = eq.gains_for(cfg.get("eq_preset") or "flat", cfg.get("eq_gains"))
+        gains[i] = db
+        cfg["eq_preset"], cfg["eq_gains"], cfg["eq_enabled"] = eq.CUSTOM, gains, True
+    elif action == "reset":
+        cfg["eq_preset"], cfg["eq_gains"] = "flat", None
+    elif action is not None:
+        sys.exit("uso: airpodsctl eq [on|off|preset <nombre>|set <banda> <dB>|reset]")
+    if action is not None:
+        config.save(cfg)
+        notify_daemon()
+    preset = cfg.get("eq_preset") or "flat"
+    gains = eq.gains_for(preset, cfg.get("eq_gains"))
+    if args.json:
+        print(json.dumps({"enabled": bool(cfg.get("eq_enabled")), "preset": preset, "gains": gains,
+                          "bands": [f for _k, f, _q in eq.BANDS]}))
+        return 0
+    label = "Personalizado" if preset == eq.CUSTOM else eq.PRESETS.get(preset, ("?",))[0]
+    st = daemon_state() or {}
+    active = (st.get("eq") or {}).get("active")
+    state = "activado" if cfg.get("eq_enabled") else "desactivado"
+    if cfg.get("eq_enabled") and active is False:
+        state += " (se aplica al conectar los AirPods)"
+    print(f"Ecualizador {state} · {label}")
+    for (_k, f, _q), g in zip(eq.BANDS, gains):
+        n = int(round(g))
+        bar = ("─" * (12 + min(n, 0)) + "█" * -min(n, 0)) + "│" + ("█" * max(n, 0)).ljust(12, "─")
+        print(f"  {eq.band_label(f):>7s} {bar} {g:+5.1f} dB")
+    return 0
+
+
 def notify_daemon() -> None:
     """Pide a airpodsd que relea la configuración (si está en marcha)."""
     try:
@@ -552,6 +600,12 @@ def main(argv=None) -> int:
     p = sub.add_parser("rename", help="cambia el nombre de los AirPods en este equipo ('' = original)")
     p.add_argument("name")
     p.set_defaults(func=cmd_rename)
+
+    p = sub.add_parser("eq", help="ecualizador de los AirPods (sin argumentos: el actual)")
+    p.add_argument("action", nargs="?", choices=["on", "off", "preset", "set", "reset"])
+    p.add_argument("args", nargs="*")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_eq)
 
     p = sub.add_parser("airplay", help="volumen del iPhone por AirPlay (UxPlay), aparte del resto")
     p.add_argument("volume", nargs="?", type=int, help="0-150 (sin argumento: el actual)")

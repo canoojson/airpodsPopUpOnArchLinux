@@ -237,6 +237,7 @@ airpodsctl keys fetch [MAC] | show         # claves de proximidad
 airpodsctl rename "Mis AirPods"            # nombre en este equipo ('' = el original)
 airpodsctl update [--check]                # busca una versión nueva e instala (--check: solo mira)
 airpodsctl config get | set <opción> true|false   # ver la tabla de opciones más abajo
+airpodsctl eq [on|off|preset P|set BANDA dB|reset]   # ecualizador de los AirPods
 airpodsctl airplay [0-150]                 # volumen del iPhone por AirPlay (UxPlay), aparte del resto
 airpodsctl report [--scan 20] [-o FICHERO]  # informe anonimizado para abrir un issue
 systemctl --user status airpodsd          # el servicio
@@ -269,6 +270,22 @@ Solo puede haber un programa con la conexión AAP. Si [airpods-helper](https://g
 
 > [!NOTE]
 > Los formatos de AAP siguen la documentación de LibrePods. Los modos de escucha y la detección de conversación son los mismos que maneja airpods-helper; si algún ajuste no responde en tu modelo, abre un *issue* con la salida de `journalctl --user -u airpodsd` (con `airpodsd -v` se ven los paquetes sin interpretar).
+
+### Ecualizador
+
+Ecualizador de 10 bandas (de 32 Hz a 16 kHz, ±12 dB) que **solo afecta a los AirPods**: los altavoces y demás salidas suenan igual. Tiene preajustes como los de Música en iOS (más graves, menos graves, voces, acústica, electrónica, rock, sonoridad, nocturno…) y ajuste por banda.
+
+- En el panel de Noctalia: fila **Ecualizador** → interruptor, preajuste y una barra por banda.
+- En la terminal:
+  ```
+  airpodsctl eq                      # estado y gráfica de las bandas
+  airpodsctl eq on | off
+  airpodsctl eq preset bass_boost    # sin nombre: lista de preajustes
+  airpodsctl eq set 4k -3            # banda por índice (0-9) o frecuencia; pasa a "Personalizado"
+  airpodsctl eq reset                # vuelve a plano
+  ```
+
+Funciona con un *filter-chain* de PipeWire que `airpodsd` lanza solo con los AirPods conectados y el ecualizador activado. Es un *smart filter* de WirePlumber (hace falta **WirePlumber 0.5** o posterior), que se coloca solo delante de la salida de los AirPods: la salida por defecto sigue siendo la de los AirPods y lo demás (el audio sigue a la oreja, bajar el volumen al hablar) no cambia. Los cambios se aplican al momento, sin cortes. Al subir una banda, el volumen general baja lo mismo para que no sature.
 
 ### Aviso de batería baja
 

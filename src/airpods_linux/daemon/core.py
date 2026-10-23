@@ -31,6 +31,7 @@ from ..state import STATE_PATH, StateStore, runtime_status_path
 from .aapctl import AapController
 from .airplay import AirplayController
 from .ears import EarController
+from .eq import EqController
 from .handoff import HandoffController
 from .popup import CasePopup
 from .service import Service
@@ -71,6 +72,7 @@ class Daemon:
         self.handoff = HandoffController(self)
         self.updates = UpdateChecker(self)
         self.airplay = AirplayController(self)
+        self.eq = EqController(self)
 
         from ..scanner import BleScanner, Tracker
         self.tracker = Tracker(self.store, self.keys, on_change=self._on_ble_change, on_own=self.popup.on_own)
@@ -127,6 +129,7 @@ class Daemon:
             "history": history_mod.summary(self.history, time.time()),
             "update": self.updates.state(),
             "airplay": self.airplay.state(),
+            "eq": self.eq.state(),
             **self.store.to_dict(),
         }
 
@@ -186,12 +189,14 @@ class Daemon:
                  "sí" if self.config.get("update_check") else "no")
         if self.config.get("update_check") and not was_enabled:
             self.updates.check()
+        self.eq.reload()
         self.changed()
 
     def _quit(self) -> bool:
         if self.ducker:
             self.ducker.restore()
         self.aap.stop()
+        self.eq.stop()
         self.scanner.quit()
         return False
 
@@ -204,6 +209,7 @@ class Daemon:
         GLib.timeout_add_seconds(2, self.aap.call_tick)
         GLib.timeout_add_seconds(2, self.handoff.tick)
         GLib.timeout_add_seconds(2, self.airplay.tick)
+        GLib.timeout_add_seconds(2, self.eq.tick)
         self.updates.schedule()
         self.scanner.run(scan=not self.args.no_ble)
 

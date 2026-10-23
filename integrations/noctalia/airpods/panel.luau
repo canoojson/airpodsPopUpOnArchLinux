@@ -1,11 +1,12 @@
 --!nonstrict
 -- Panel desplegable con aspecto de iOS: batería de cada auricular y de la caja
 -- (airpodsd, también con la caja cerrada), control de ruido, detección de conversación
--- iPhone por AirPlay (UxPlay) y gráfica de las últimas 24 h. El modo va por la conexión AAP de airpodsd o,
+-- ecualizador, iPhone por AirPlay (UxPlay) y gráfica de las últimas 24 h. El modo va por la conexión AAP de airpodsd o,
 -- si la tiene airpods-helper, por airpods-cli.
 
 local common = require("./lib/common.luau")
 local settings = require("./lib/settings.luau")
+local eqView = require("./lib/eq.luau")
 
 local STATUS_KEY = "airpods.status"
 local TRACK_WIDTH = 288   -- ancho útil del scroll (panel - márgenes - barra - hueco derecho)
@@ -22,7 +23,7 @@ local panelOpen = false
 local busy = false
 local pendingMode = nil
 local connecting = false
-local view = "main"     -- "main" | "settings"
+local view = "main"     -- "main" | "settings" | "eq"
 local render
 
 -- ¿Tiene airpodsd su propia conexión AAP? Entonces el modo va por airpodsctl.
@@ -270,6 +271,20 @@ local function airplaySection(children)
   table.insert(children, common.group("airplay-group", rows))
 end
 
+-- Acceso a la vista del ecualizador, como una fila de Ajustes de iOS.
+local function eqSection(children)
+  local e = status.eq
+  if e == nil or e.available == false then return end
+  local label = (e.enabled and eqView.presetLabel(e)) or "Desactivado"
+  table.insert(children, common.group("eq-group", {
+    common.listRow("eq-row", {
+      glyph = "adjustments-horizontal", title = "Ecualizador", subtitle = label,
+      trailing = ui.glyph({ name = "chevron-right", size = 16, color = common.SECONDARY }),
+      onClick = function() view = "eq"; eqView.reset(); render() end,
+    }),
+  }))
+end
+
 local function fmtMinutes(m)
   if m >= 60 then return string.format("%d h %02d min", math.floor(m / 60), m % 60) end
   return m .. " min"
@@ -309,6 +324,14 @@ end
 
 render = function()
   if not panelOpen then return end
+
+  if view == "eq" then
+    panel.render(eqView.render(status, {
+      common = common, refresh = refresh, rerender = function() render() end,
+      back = function() view = "main"; eqView.reset(); render() end,
+    }))
+    return
+  end
 
   if view == "settings" then
     panel.render(settings.render(status, {
@@ -381,6 +404,7 @@ render = function()
   end
   ancSection(children)
   conversationSection(children)
+  eqSection(children)
   airplaySection(children)
   historySection(children)
   -- El resto va en un scroll del alto del panel: así nada se sale de su borde.
@@ -399,8 +423,9 @@ end
 
 function onOpen(context)
   panelOpen = true
-  view = (context == "settings") and "settings" or "main"
+  view = (context == "settings" or context == "eq") and context or "main"
   settings.reset()
+  eqView.reset()
   status = common.decode(noctalia.state.get(STATUS_KEY))
   panel.setWantsSecondTicks(true) -- refresca cada segundo mientras está abierto
   render()
