@@ -8,7 +8,14 @@ local M = {}
 local T = noctalia.tr
 
 local busy = false
-local drafts = {}   -- banda -> dB mientras se arrastra
+-- Barras: el valor que ha puesto el usuario se conserva (drafts) hasta que el estado de
+-- airpodsd lo confirma, para que la barra no vuelva atrás mientras se guarda. Los cambios
+-- se encolan (pending) y se mandan de uno en uno: soltar otra barra mientras se guarda
+-- la anterior no se pierde.
+local drafts = {}    -- banda -> dB
+local pending = {}   -- banda -> dB por mandar
+local sending = nil  -- banda que se está mandando
+local ctx = nil      -- { status, refresh, rerender } del último render
 
 local function ctl(status)
   return (status and status.ctl) or "airpodsctl"
@@ -17,6 +24,7 @@ end
 function M.reset()
   busy = false
   drafts = {}
+  pending = {}
 end
 
 local function run(status, args, refresh, rerender)
@@ -25,15 +33,48 @@ local function run(status, args, refresh, rerender)
   rerender()
   local argv = { ctl(status), "eq" }
   for _, a in ipairs(args) do table.insert(argv, a) end
+  -- Un preajuste o restablecer sustituye a lo que hubiera a medias en las barras.
+  drafts, pending = {}, {}
   noctalia.runAsync(argv, function(result)
     busy = false
-    drafts = {}
     if result.exitCode ~= 0 then
       noctalia.notifyError("AirPods", (result.stderr ~= "" and result.stderr) or T("No se pudo cambiar el ecualizador"))
     end
     refresh()
     rerender()
   end, 8000)
+end
+
+local function flush()
+  if sending ~= nil or ctx == nil then return end
+  local band, value = next(pending)
+  if band == nil then return end
+  pending[band] = nil
+  sending = band
+  noctalia.runAsync({ ctl(ctx.status), "eq", "set", tostring(band), tostring(value) }, function(result)
+    sending = nil
+    if result.exitCode ~= 0 then
+      drafts[band] = nil
+      noctalia.notifyError("AirPods", (result.stderr ~= "" and result.stderr) or T("No se pudo cambiar el ecualizador"))
+    end
+    ctx.refresh()
+    flush()
+  end, 8000)
+end
+
+-- Callbacks de las barras. Noctalia identifica cada callback por su nombre, y el de una
+-- función anónima cambia en cada render: los eventos de arrastre que llegan con el nombre
+-- anterior se descartan y al soltar se mandaba un valor viejo. Por eso panel.luau
+-- registra funciones globales con nombre fijo (eqBand0..9, eqBandEnd0..9) que llaman aquí.
+function M.bandChanged(band, v)
+  drafts[band] = tonumber(v) or drafts[band]
+  if ctx then ctx.rerender() end
+end
+
+function M.bandReleased(band)
+  if drafts[band] == nil then return end
+  pending[band] = drafts[band]
+  flush()
 end
 
 local function bandLabel(freq)
@@ -60,6 +101,7 @@ function M.render(status, opts)
   local common, refresh, rerender = opts.common, opts.refresh, opts.rerender
   local e = (status and status.eq) or {}
   local enabled = e.enabled == true
+  ctx = { status = status, refresh = refresh, rerender = rerender }
 
   local header = ui.column({ key = "eq-header", gap = 6 }, {
     ui.row({ key = "eq-back", gap = 2, align = "center", onClick = opts.back }, {
@@ -106,18 +148,17 @@ function M.render(status, opts)
   local rows = {}
   for i, freq in ipairs(e.bands or {}) do
     local band = i - 1
-    local value = drafts[band] or (e.gains and e.gains[i]) or 0
+    local confirmed = e.gains and e.gains[i]
+    -- El valor puesto a mano deja de hacer falta cuando airpodsd ya lo tiene.
+    if drafts[band] ~= nil and pending[band] == nil and sending ~= band and confirmed == drafts[band] then
+      drafts[band] = nil
+    end
+    local value = drafts[band] or confirmed or 0
     table.insert(rows, ui.row({ key = "eq-band-" .. band, gap = 8, align = "center", paddingH = 14, paddingV = 4 }, {
       ui.label({ text = bandLabel(freq), fontSize = 12, color = common.SECONDARY, width = 48 }),
       ui.slider({ key = "eq-slider-" .. band, min = range[1], max = range[2], step = 0.5, value = value,
                   flexGrow = 1, controlSize = "sm", enabled = not busy,
-                  onChange = function(v)
-        drafts[band] = tonumber(v) or value
-        rerender()
-      end,
-                  onDragEnd = function()
-        if drafts[band] ~= nil then run(status, { "set", tostring(band), tostring(drafts[band]) }, refresh, rerender) end
-      end }),
+                  onChange = "eqBand" .. band, onDragEnd = "eqBandEnd" .. band }),
       ui.label({ text = fmtDb(value), fontSize = 12, color = common.SECONDARY, width = 52, textAlign = "right" }),
     }))
   end

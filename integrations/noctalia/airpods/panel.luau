@@ -414,6 +414,28 @@ render = function()
   panel.render(ui.column({ padding = 18, gap = 14, fill = "surface", radius = 24, flexGrow = 1 }, header))
 end
 
+-- Barras del ecualizador: callbacks con nombre fijo (el porqué, en lib/eq.luau).
+function eqBand0(v) eqView.bandChanged(0, v) end
+function eqBand1(v) eqView.bandChanged(1, v) end
+function eqBand2(v) eqView.bandChanged(2, v) end
+function eqBand3(v) eqView.bandChanged(3, v) end
+function eqBand4(v) eqView.bandChanged(4, v) end
+function eqBand5(v) eqView.bandChanged(5, v) end
+function eqBand6(v) eqView.bandChanged(6, v) end
+function eqBand7(v) eqView.bandChanged(7, v) end
+function eqBand8(v) eqView.bandChanged(8, v) end
+function eqBand9(v) eqView.bandChanged(9, v) end
+function eqBandEnd0() eqView.bandReleased(0) end
+function eqBandEnd1() eqView.bandReleased(1) end
+function eqBandEnd2() eqView.bandReleased(2) end
+function eqBandEnd3() eqView.bandReleased(3) end
+function eqBandEnd4() eqView.bandReleased(4) end
+function eqBandEnd5() eqView.bandReleased(5) end
+function eqBandEnd6() eqView.bandReleased(6) end
+function eqBandEnd7() eqView.bandReleased(7) end
+function eqBandEnd8() eqView.bandReleased(8) end
+function eqBandEnd9() eqView.bandReleased(9) end
+
 noctalia.state.watch(STATUS_KEY, function(value)
   status = common.decode(value)
   render()
