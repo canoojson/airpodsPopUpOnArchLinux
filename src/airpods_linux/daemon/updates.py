@@ -8,6 +8,7 @@ from gi.repository import GLib
 from .. import config as config_mod
 from .. import update as update_mod
 from ..desktop import notify
+from ..i18n import _
 
 log = logging.getLogger("airpodsd")
 
@@ -58,8 +59,8 @@ class UpdateChecker:
             if not manual and config.get("notified_version") != info["latest"]:
                 config["notified_version"] = info["latest"]
                 config_mod.save(config)
-                notify(f"AirPods Linux {info['latest']} disponible",
-                       "Actualiza con: airpodsctl update (o desde el ⚙ del panel)",
+                notify(_("AirPods Linux {version} disponible").format(version=info["latest"]),
+                       _("Actualiza con: airpodsctl update (o desde el ⚙ del panel)"),
                        icon="software-update-available")
         self.d.changed()
         return False

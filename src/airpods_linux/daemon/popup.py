@@ -6,6 +6,7 @@ from gi.repository import GLib
 
 from ..desktop import Popup
 from ..events import CLOSED, OPENED, CaseEventDetector
+from ..i18n import _
 
 log = logging.getLogger("airpodsd")
 
@@ -28,7 +29,8 @@ class CasePopup:
         st.pop("history", None)   # el popup no la usa y va por la línea de órdenes de noctalia
         g = self.d.store.get
         st["title"] = st["name"] or st["model_name"]
-        st["summary"] = f"Izquierdo {pct(g('left'))} · Derecho {pct(g('right'))} · Caja {pct(g('case'))}"
+        st["summary"] = _("Izquierdo {left} · Derecho {right} · Caja {case}").format(
+            left=pct(g("left")), right=pct(g("right")), case=pct(g("case")))
         return st
 
     def refresh(self) -> None:

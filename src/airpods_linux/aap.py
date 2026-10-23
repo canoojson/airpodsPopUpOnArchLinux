@@ -20,6 +20,7 @@ import socket
 import time
 from dataclasses import dataclass
 
+from .i18n import _
 from .keys import ProximityKeys
 from .proximity import Battery
 
@@ -60,13 +61,13 @@ class Setting:
     def encode(self, value) -> int:
         if self.kind == "enum":
             if value not in self.values:
-                raise ValueError(f"valores posibles: {', '.join(self.values)}")
+                raise ValueError(_("valores posibles: {values}").format(values=", ".join(self.values)))
             return self.values[value]
         if self.kind == "bool":
             return 0x01 if value else 0x02
         v = int(value)
         if not 0 <= v <= 100:
-            raise ValueError("valor de 0 a 100")
+            raise ValueError(_("valor de 0 a 100"))
         return v
 
     def decode(self, byte: int):
@@ -84,12 +85,12 @@ class Setting:
                 return True
             if low in ("0", "false", "off", "no"):
                 return False
-            raise ValueError("espera on/off")
+            raise ValueError(_("espera on/off"))
         if self.kind == "range":
             try:
                 return int(raw)
             except ValueError:
-                raise ValueError("espera un número de 0 a 100") from None
+                raise ValueError(_("espera un número de 0 a 100")) from None
         return raw.strip().lower()
 
 
@@ -192,7 +193,7 @@ def parse_key_response(pkt: bytes) -> dict[int, bytes]:
     if len(pkt) < 7 or pkt[:5] != KEY_RESPONSE:
         return {}
     keys, off = {}, 7
-    for _ in range(pkt[6]):
+    for _key in range(pkt[6]):
         if off + 4 > len(pkt):
             break
         ktype, klen = pkt[off], int.from_bytes(pkt[off + 1:off + 3], "big")
@@ -222,7 +223,7 @@ def fetch_keys(address: str, timeout: float = 8.0) -> ProximityKeys:
     try:
         s.connect((address, PSM))
     except OSError as e:
-        raise AapError(f"no se pudo abrir L2CAP 0x1001 ({e}); ¿están conectados los AirPods?") from e
+        raise AapError(_("no se pudo abrir L2CAP 0x1001 ({error}); ¿están conectados los AirPods?").format(error=e)) from e
     try:
         s.send(HANDSHAKE)
         time.sleep(0.5)
@@ -237,5 +238,5 @@ def fetch_keys(address: str, timeout: float = 8.0) -> ProximityKeys:
                 return ProximityKeys(address, keys[KEY_IRK], keys[KEY_ENC])
     finally:
         s.close()
-    raise AapError("los AirPods no enviaron las claves; si airpods-daemon (airpods-helper) está "
-                   "activo ocupa el canal AAP: systemctl --user stop airpods-daemon y reintenta")
+    raise AapError(_("los AirPods no enviaron las claves; si airpods-daemon (airpods-helper) está "
+                     "activo ocupa el canal AAP: systemctl --user stop airpods-daemon y reintenta"))

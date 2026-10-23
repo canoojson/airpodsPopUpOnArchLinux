@@ -51,13 +51,16 @@ def parse_value(key: str, raw: str):
             return True
         if low in ("0", "false", "off", "no"):
             return False
-        raise ValueError(f"{key} espera true/false")
+        from .i18n import _
+        raise ValueError(_("{key} espera true/false").format(key=key))
     return raw
 
 
 def set_value(key: str, raw: str, path: Path = CONFIG_PATH) -> dict:
     if key not in DEFAULTS:
-        raise KeyError(f"opción desconocida: {key} (disponibles: {', '.join(sorted(BOOL_KEYS))})")
+        from .i18n import _
+        raise KeyError(_("opción desconocida: {key} (disponibles: {values})").format(
+            key=key, values=", ".join(sorted(BOOL_KEYS))))
     cfg = load(path)
     cfg[key] = parse_value(key, raw)
     save(cfg, path)

@@ -10,6 +10,7 @@ from .. import aap
 from .. import config as config_mod
 from .. import keys as keys_mod
 from ..audio import RESTORE_FROM, CallGuard, airpods_sink_prefix
+from ..i18n import _
 
 log = logging.getLogger("airpodsd")
 
@@ -214,11 +215,11 @@ class AapController:
         """Devuelve un mensaje de error, o None si se envió."""
         setting = aap.SETTINGS.get(name)
         if setting is None:
-            return f"ajuste desconocido: {name} (disponibles: {', '.join(aap.SETTINGS)})"
+            return _("ajuste desconocido: {name} (disponibles: {values})").format(name=name, values=", ".join(aap.SETTINGS))
         if not self.connected:
             if self.d.ears.helper_active():
-                return "airpods-helper tiene la conexión AAP: usa airpods-cli o páralo"
-            return "sin conexión AAP con los AirPods (¿están conectados a este equipo?)"
+                return _("airpods-helper tiene la conexión AAP: usa airpods-cli o páralo")
+            return _("sin conexión AAP con los AirPods (¿están conectados a este equipo?)")
         try:
             value = setting.parse(raw)
             aap.setting_packet(name, value)
@@ -227,10 +228,11 @@ class AapController:
         if name == "conversational_awareness" and self.in_call:
             self.call_guard.set_pref(value)
             self._guard_conversation(active=False)
-            return ("durante una llamada la detección de conversación está desactivada; "
-                    f"al colgar quedará {'activada' if value else 'desactivada'}")
+            return (_("durante una llamada la detección de conversación está desactivada; al colgar quedará activada")
+                    if value else
+                    _("durante una llamada la detección de conversación está desactivada; al colgar quedará desactivada"))
         if not self._send_setting(name, value):
-            return "no se pudo enviar el ajuste"
+            return _("no se pudo enviar el ajuste")
         return None
 
     def _send_setting(self, name: str, value) -> bool:

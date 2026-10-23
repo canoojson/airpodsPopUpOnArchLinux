@@ -71,7 +71,9 @@ def band_index(raw: str) -> int:
     for i, (_kind, f, _q) in enumerate(BANDS):
         if f == freq:
             return i
-    raise ValueError(f"banda desconocida: {raw} (posibles: {', '.join(band_label(f) for _k, f, _q in BANDS)})")
+    from .i18n import _
+    raise ValueError(_("banda desconocida: {band} (posibles: {values})").format(
+        band=raw, values=", ".join(band_label(f) for _k, f, _q in BANDS)))
 
 
 def _num(x: float) -> str:

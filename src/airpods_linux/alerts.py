@@ -57,13 +57,14 @@ class LowBatteryAlerts:
 
 def message(alerts: list[Alert]) -> tuple[str, str, bool]:
     """(título, cuerpo, urgente) de una notificación que agrupa los avisos."""
-    body = " · ".join(f"{NAMES[a.part]} {a.level} %" for a in alerts)
+    from .i18n import _
+    body = " · ".join(f"{_(NAMES[a.part])} {a.level} %" for a in alerts)
     urgent = any(a.threshold <= THRESHOLDS[-1] for a in alerts)
     pods = [a for a in alerts if a.part != "case"]
     if pods and len(pods) < len(alerts):
-        title = "AirPods y caja con batería baja"
+        title = _("AirPods y caja con batería baja")
     elif pods:
-        title = "AirPods con batería baja"
+        title = _("AirPods con batería baja")
     else:
-        title = "Caja de los AirPods con batería baja"
+        title = _("Caja de los AirPods con batería baja")
     return title, body, urgent

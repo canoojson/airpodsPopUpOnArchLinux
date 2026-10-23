@@ -6,6 +6,7 @@ import dbus
 
 from .. import airplay
 from ..desktop import notify
+from ..i18n import _
 from ..media import MPRIS_PATH, PLAYER_IFACE, PROPS_IFACE
 
 log = logging.getLogger("airpodsd")
@@ -68,8 +69,8 @@ class AirplayController:
             return
         if self.hint.should_hint(time.time(), self.info["running"], pc_was_playing):
             name = airplay.receiver_name()
-            target = f"«{name}»" if name else "este equipo"
+            target = f"«{name}»" if name else _("este equipo")
             log.info("aviso: con AirPlay a %s se oyen el iPhone y el PC a la vez", target)
-            notify("¿El iPhone y el PC a la vez?",
-                   f"En el iPhone, manda el audio por AirPlay a {target}: así los AirPods se quedan "
-                   "en el PC y suenan los dos.")
+            notify(_("¿El iPhone y el PC a la vez?"),
+                   _("En el iPhone, manda el audio por AirPlay a {target}: así los AirPods se quedan "
+                     "en el PC y suenan los dos.").format(target=target))
