@@ -31,6 +31,9 @@ PRESETS = {
     "rock": ("Rock", [5, 4, 3, 1.5, -0.5, -1, 0.5, 2.5, 3.5, 4.5]),
     "loudness": ("Sonoridad", [6, 4, 0, 0, -2, 0, -1, -5, 5, 1]),
     "late_night": ("Nocturno", [-3, -2, -1, 0, 1, 2, 2, 1, 0, -1]),
+    # Propio: el bombo del lofi. Golpe (64 Hz) y cuerpo (125 Hz) arriba, menos barro en
+    # 250-500 Hz para que se separe del resto, y algo de ataque en 2-4 kHz.
+    "lofi": ("Lofi", [2, 6, 4, -2, -1, 0, 1, 2, 0, 0]),
 }
 CUSTOM = "custom"
 

@@ -79,7 +79,7 @@ msgstr "earbud"
 msgid "auricular, sin cifrar"
 msgstr "earbud, unencrypted"
 
-#: src/airpods_linux/eq.py:116
+#: src/airpods_linux/eq.py:119
 msgid "banda desconocida: {band} (posibles: {values})"
 msgstr "unknown band: {band} (possible: {values})"
 
@@ -290,6 +290,10 @@ msgstr "JSON for a Waybar custom module"
 #: src/airpods_linux/cli.py:327
 msgid "Las claves de {address} ya estaban guardadas y coinciden con las de los AirPods"
 msgstr "The keys for {address} were already saved and match the AirPods"
+
+#: eq.PRESETS
+msgid "Lofi"
+msgstr "Lo-fi"
 
 #: src/airpods_linux/aap.py:241
 msgid "los AirPods no enviaron las claves; si airpods-daemon (airpods-helper) está activo ocupa el canal AAP: systemctl --user stop airpods-daemon y reintenta"

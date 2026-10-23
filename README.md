@@ -275,14 +275,15 @@ Solo puede haber un programa con la conexión AAP. Si [airpods-helper](https://g
 
 ### Ecualizador
 
-Ecualizador de 10 bandas (de 32 Hz a 16 kHz, ±12 dB) que **solo afecta a los AirPods**: los altavoces y demás salidas suenan igual. Tiene preajustes como los de Música en iOS (más graves, menos graves, voces, acústica, electrónica, rock, sonoridad, nocturno…) y ajuste por banda.
+Ecualizador de 10 bandas (de 32 Hz a 16 kHz, ±12 dB) que **solo afecta a los AirPods**: los altavoces y demás salidas suenan igual. Tiene un modo **sencillo** como el de iOS (graves, medios y agudos) y uno **avanzado** con preajustes como los de Música en iOS (más graves, menos graves, voces, acústica, electrónica, rock, sonoridad, nocturno…), uno **Lofi** para que se note el bombo, y ajuste por banda.
 
 - En el panel de Noctalia: fila **Ecualizador** → interruptor, preajuste y una barra por banda.
 - En la terminal:
   ```
   airpodsctl eq                      # estado y gráfica de las bandas
   airpodsctl eq on | off
-  airpodsctl eq preset bass_boost    # sin nombre: lista de preajustes
+  airpodsctl eq simple 6 -1 1       # modo sencillo: graves, medios y agudos
+  airpodsctl eq preset lofi          # modo avanzado; sin nombre: lista de preajustes
   airpodsctl eq set 4k -3            # banda por índice (0-9) o frecuencia; pasa a "Personalizado"
   airpodsctl eq reset                # vuelve a plano
   ```
