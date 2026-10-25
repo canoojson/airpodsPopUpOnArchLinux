@@ -232,18 +232,43 @@ local function conversationSection(children)
 end
 
 -- El iPhone por AirPlay (UxPlay): suena en el PC a la vez que el resto, con su propio volumen.
-local airplayDraft = nil   -- volumen mientras se arrastra el control
-local airplayBusy = false
+-- Como las barras del ecualizador: el valor puesto se conserva (airplayDraft) hasta que airpodsd
+-- lo confirma, y los cambios se mandan de uno en uno.
+local airplayDraft = nil     -- volumen que ha puesto el usuario
+local airplayPending = nil   -- volumen por mandar
+local airplaySending = false
 
-local function setAirplayVolume(v)
-  if airplayBusy then return end
-  airplayBusy = true
+local function flushAirplay()
+  if airplaySending or airplayPending == nil then return end
+  local v = airplayPending
+  airplayPending = nil
+  airplaySending = true
   noctalia.runAsync({ ctl(), "airplay", tostring(v) }, function(result)
-    airplayBusy = false
-    airplayDraft = nil
-    if result.exitCode ~= 0 then noctalia.notifyError("AirPods", T("No se pudo cambiar el volumen de AirPlay")) end
+    airplaySending = false
+    if result.exitCode ~= 0 then
+      airplayDraft = nil
+      noctalia.notifyError("AirPods", T("No se pudo cambiar el volumen de AirPlay"))
+    end
     refresh()
+    flushAirplay()
   end, 5000)
+end
+
+-- Callbacks del control con nombre fijo: Noctalia los identifica por su nombre, y el de una
+-- función anónima cambia en cada render (los eventos de arrastre se perdían).
+-- El volumen cambia mientras se arrastra: siempre se manda el último valor en cuanto acaba el
+-- envío anterior (los intermedios se saltan), así sigue al dedo sin amontonar órdenes.
+function airplayVolume(v)
+  airplayDraft = math.floor(tonumber(v) or airplayDraft or 0)
+  airplayPending = airplayDraft
+  flushAirplay()
+  render()
+end
+
+function airplayVolumeEnd()
+  if airplayDraft == nil then return end
+  airplayPending = airplayDraft
+  flushAirplay()
 end
 
 local function airplaySection(children)
@@ -253,19 +278,15 @@ local function airplaySection(children)
   local rows = {
     common.listRow("airplay", { glyph = "device-mobile", title = T("iPhone por AirPlay"), subtitle = what }),
   }
+  if airplayDraft ~= nil and ap.volume == airplayDraft and not airplaySending and airplayPending == nil then
+    airplayDraft = nil   -- airpodsd ya lo confirma
+  end
   local volume = airplayDraft or ap.volume
   if volume ~= nil then
     table.insert(rows, ui.row({ key = "airplay-vol", gap = 10, align = "center", paddingH = 14, paddingV = 6 }, {
       ui.glyph({ name = "volume-2", size = 16, color = common.SECONDARY }),
       ui.slider({ key = "airplay-slider", min = 0, max = 100, step = 1, value = math.min(volume, 100), flexGrow = 1,
-                  controlSize = "sm", enabled = not airplayBusy,
-                  onChange = function(v)
-        airplayDraft = math.floor(tonumber(v) or volume)
-        render()
-      end,
-                  onDragEnd = function()
-        if airplayDraft ~= nil then setAirplayVolume(airplayDraft) end
-      end }),
+                  controlSize = "sm", onChange = "airplayVolume", onDragEnd = "airplayVolumeEnd" }),
       ui.label({ text = tostring(volume) .. " %", fontSize = 12, color = common.SECONDARY, width = 40, textAlign = "right" }),
     }))
   end
