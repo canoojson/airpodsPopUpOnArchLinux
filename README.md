@@ -1,8 +1,10 @@
 # airpodsPopUpOnArchLinux
 
-Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **popup estilo iOS** al abrir la caja con los auriculares dentro.
+Tus **AirPods en Linux**, como en el iPhone: batería **también con la caja cerrada**, un **popup estilo iOS** al abrir la caja, **cancelación de ruido** y modos de escucha, **ecualizador** y el sonido **del iPhone y del PC a la vez**.
 
-> **English:** ⚠️ Read the *known audio conflicts* warning below before installing (Linux Wallpaper Engine, EasyEffects, airpods-helper). Linux daemon + CLI that reads AirPods battery (left/right/case, 1 % precision, even with the lid closed) from Apple's BLE advertisements, and shows an iOS-like popup when you open the case. Works with any desktop (notification fallback); first-class integration for the Noctalia shell. Install: `curl -fsSL https://raw.githubusercontent.com/canoojson/airpodsPopUpOnArchLinux/main/install.sh | bash`
+[![Vídeo de la 1.0: popup, cancelación de ruido, ecualizador y AirPlay](docs/video.jpg)](https://youtu.be/zAYsqjkrPCw)
+
+> **English:** ⚠️ Read the *known audio conflicts* warning below before installing (Linux Wallpaper Engine, EasyEffects, airpods-helper). Linux daemon + CLI for AirPods: battery (left/right/case, 1 % precision, even with the lid closed) from Apple's BLE advertisements, an iOS-like popup when you open the case, listening modes (noise cancellation, adaptive, transparency), a 10-band equalizer and iPhone + PC audio at once over AirPlay (UxPlay). Works with any desktop (notification fallback); first-class integration for the Noctalia shell, plus GNOME Shell and KDE Plasma extensions. English UI. [Video](https://youtu.be/zAYsqjkrPCw). Install: `curl -fsSL https://raw.githubusercontent.com/canoojson/airpodsPopUpOnArchLinux/main/install.sh | bash`
 
 > [!WARNING]
 > ### ⚠️ LEE ESTO ANTES DE INSTALAR: conflictos de audio conocidos
@@ -25,7 +27,7 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 
 - **Batería al 1 %** del auricular izquierdo, del derecho y de la caja, con su estado de carga, detección en oreja y estado de la tapa.
 - **Con la caja cerrada:** la caja sigue anunciando su estado cifrado durante minutos; con las claves de tus AirPods se descifra y se ve la batería en vivo.
-- **Popup al abrir la caja**, en ~1 s: panel flotante en [Noctalia](https://github.com/noctalia-dev/noctalia) o notificación de escritorio en cualquier otro entorno.
+- **Popup al abrir la caja**, en ~1 s: en [Noctalia](https://github.com/noctalia-dev/noctalia), un panel flotante con los auriculares y la caja en 3D girando, como en el iPhone; en cualquier otro entorno, una notificación de escritorio.
 - **Último estado conocido** con su antigüedad cuando no hay datos frescos ("visto hace 5 min"), nunca un dato viejo presentado como actual.
 - **Sin escaneo continuo:** usa el monitor pasivo de anuncios de BlueZ, que no interfiere con tus otros dispositivos Bluetooth.
 - `airpodsctl` para la terminal y una API D-Bus para integrarlo en otros widgets.
@@ -48,7 +50,8 @@ Batería de tus **AirPods en Linux**, también **con la caja cerrada**, y un **p
 | **AirPods Pro 3** | ✅ Probado a fondo |
 | Otros AirPods / Beats | ⚠️ Sin probar. El anuncio de los auriculares es común a todos los modelos y probablemente funcione; el de la caja cerrada se ha verificado solo con el Pro 3 |
 | Distribución | Desarrollado en **Arch Linux**. Debería funcionar en cualquier distro con systemd y BlueZ reciente |
-| Escritorio | Cualquiera (notificación). Integración completa con **Noctalia**; animación del popup con **Hyprland** |
+| Escritorio | Cualquiera (notificación). Integración completa con **Noctalia**; animación del popup con **Hyprland**. Extensiones para **GNOME Shell** y **KDE Plasma** (⚠️ sin probar a fondo) |
+| Idioma | Castellano e inglés (cualquier otro idioma usa el inglés) |
 
 Cada instalación reconoce **solo los AirPods de su usuario**: `airpodsctl keys fetch` localiza los AirPods emparejados en tu equipo (si hay varios, te pide elegir) y guarda sus claves. Las direcciones Bluetooth no se usan para identificarlos, porque rotan cada pocos minutos: se reconocen criptográficamente. Por ahora se sigue **un par de AirPods** por usuario.
 
@@ -239,7 +242,7 @@ airpodsctl keys fetch [MAC] | show         # claves de proximidad
 airpodsctl rename "Mis AirPods"            # nombre en este equipo ('' = el original)
 airpodsctl update [--check]                # busca una versión nueva e instala (--check: solo mira)
 airpodsctl config get | set <opción> true|false   # ver la tabla de opciones más abajo
-airpodsctl eq [on|off|preset P|set BANDA dB|reset]   # ecualizador de los AirPods
+airpodsctl eq [on|off|simple G M A|advanced|preset P|set BANDA dB|reset]   # ecualizador de los AirPods
 airpodsctl airplay [0-150]                 # volumen del iPhone por AirPlay (UxPlay), aparte del resto
 airpodsctl report [--scan 20] [-o FICHERO]  # informe anonimizado para abrir un issue
 systemctl --user status airpodsd          # el servicio
@@ -360,7 +363,7 @@ Si tienes [UxPlay](https://github.com/FDH2/UxPlay) como receptor AirPlay en el P
 
 ### Ajustes (⚙)
 
-El panel de la barra y el popup tienen un botón ⚙. El popup no toma el teclado, así que su ⚙ abre el panel directamente en los ajustes. Desde ahí puedes:
+El panel de la barra tiene un botón ⚙ arriba a la derecha. Desde ahí puedes:
 
 - **Cambiar el nombre** del dispositivo. Es el nombre en *este* equipo (BlueZ): lo ven el popup, el panel y tu gestor de Bluetooth. El nombre guardado en los propios AirPods, el que ve tu iPhone, no cambia.
 - **Activar o desactivar** que el audio pase a los AirPods solo al ponértelos.
@@ -399,7 +402,7 @@ Para no instalarlos: `./install.sh --no-gnome --no-kde`. El popup al abrir la ca
   ```
 - **Fichero**: `$XDG_RUNTIME_DIR/airpods-linux/status.json`, con el mismo JSON y actualizado en cada cambio. Es útil para Waybar, eww, Quickshell…
 
-Cada campo del JSON lleva `value`, `ts` (época Unix) y `source` (`ble-enc`, `ble-case`, `ble-clear` o `aap`). Además: `aap` (conexión, quién la tiene, ajustes de los AirPods y modos disponibles), `history` (series de 24 h y minutos restantes estimados) y `alerts`.
+Cada campo del JSON lleva `value`, `ts` (época Unix) y `source` (`ble-enc`, `ble-case`, `ble-clear` o `aap`). Además: `aap` (conexión, quién la tiene, ajustes de los AirPods y modos disponibles), `eq` (ecualizador: modo, preajuste y ganancias), `airplay` (UxPlay: si suena, qué y su volumen), `history` (series de 24 h y minutos restantes estimados) y `alerts`.
 
 ## Actualizaciones
 
@@ -435,6 +438,8 @@ Los AirPods anuncian por Bluetooth LE un mensaje *Proximity Pairing* de Apple co
 | El widget dice "airpodsd no está en ejecución" | `systemctl --user enable --now airpodsd` |
 | Al conectar o desconectar los AirPods el vídeo se queda "cargando" sin sonido | Casi seguro es Linux Wallpaper Engine u otra app congelada con audio abierto: ver [Antes de instalar](#antes-de-instalar-conflictos-de-audio-conocidos) |
 | Al conectar los AirPods el sonido sigue saliendo por otro sitio | EasyEffects o WirePlumber fijando la salida: ver [Antes de instalar](#antes-de-instalar-conflictos-de-audio-conocidos) |
+| Suena el iPhone por AirPlay pero el panel no muestra la sección AirPlay | Comprueba `airpodsctl airplay`: si dice que UxPlay no está sonando, mira que el flujo de UxPlay aparezca en `pactl list sink-inputs` |
+| El ecualizador no hace nada | Hace falta WirePlumber 0.5 o posterior; al conectar los AirPods, el log de `airpodsd` debe decir `ecualizador activado en …` |
 
 ## Desinstalar
 
