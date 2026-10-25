@@ -11,9 +11,17 @@ local T = noctalia.tr
 
 local AUTO_CLOSE_S = 10
 
+-- Auriculares y caja girando, como en iOS: fotogramas de un render del modelo 3D (ver
+-- CREDITS.md), una vuelta cada SPIN_FRAMES / SPIN_FPS segundos. Están dibujados al doble.
+local SPIN_FRAMES = 480
+local SPIN_FPS = 60
+local SPIN_W, SPIN_H = 150, 130
+
 local state = nil
 local openedAt = 0
 local connecting = false
+local spinStartMs = 0
+local spinFrame = 0
 
 local function connect()
   if connecting or state == nil or state.address == nil then return end
@@ -30,38 +38,48 @@ local function connect()
   end, 15000)
 end
 
--- Una pieza (auricular o caja): ilustración, insignia I/D y batería debajo, como en iOS.
--- Batería de una pieza: icono de iOS encima del porcentaje.
+-- Batería de una pieza, como en iOS: insignia (I, D o el icono de la caja), icono de batería
+-- y porcentaje debajo.
 local function batteryStack(key, battery, badge)
   local level = battery and battery.level
-  local children = {}
-  if badge then
-    table.insert(children, ui.row({ key = key .. "-badge", width = 18, height = 18, radius = 9, align = "center",
-                                    justify = "center", fill = "on_surface/0.12" }, {
-      ui.label({ text = badge, fontSize = 10, fontWeight = "semibold", color = common.SECONDARY }),
-    }))
-  end
-  table.insert(children, common.batteryIcon(key .. "-bat", battery, { showText = false, width = 30, height = 14 }))
-  table.insert(children, ui.label({ key = key .. "-pct", text = level and (level .. " %") or "—", fontSize = 15,
-                                    color = level and "on_surface" or common.SECONDARY }))
-  return ui.column({ key = key, gap = 8, align = "center", width = 64 }, children)
+  return ui.column({ key = key, gap = 8, align = "center", width = 64 }, {
+    ui.row({ key = key .. "-badge", width = 22, height = 22, radius = 11, align = "center",
+             justify = "center", fill = "on_surface/0.12" }, { badge }),
+    common.batteryIcon(key .. "-bat", battery, { showText = false, width = 30, height = 14 }),
+    ui.label({ key = key .. "-pct", text = level and (level .. " %") or "—", fontSize = 15,
+               color = level and "on_surface" or common.SECONDARY }),
+  })
 end
 
--- Auriculares: un solo icono (el tema no tiene uno por lado) con las dos baterías debajo.
+local function letter(text)
+  return ui.label({ text = text, fontSize = 11, fontWeight = "semibold", color = common.SECONDARY })
+end
+
+-- what: "buds" o "case" (carpeta de fotogramas en assets/); glyph: icono del tema si no hay.
+local function spinning(what, glyph)
+  local dir = noctalia.pluginDir()
+  if dir == nil then
+    return ui.glyph({ key = what .. "-img", name = glyph, size = 76, color = "on_surface" })
+  end
+  return ui.image({ key = what .. "-img", path = string.format("%s/assets/%s/%03d.webp", dir, what, spinFrame),
+                    width = SPIN_W, height = SPIN_H })
+end
+
+-- Auriculares: un solo dibujo para los dos, con las dos baterías debajo.
 local function pods(left, right)
   return ui.column({ key = "pods", gap = 12, align = "center" }, {
-    ui.glyph({ key = "pods-img", name = "device-airpods", size = 76, color = "on_surface" }),
+    spinning("buds", "device-airpods"),
     ui.row({ key = "pods-bats", gap = 8, align = "end" }, {
-      batteryStack("left", left, T("I")),
-      batteryStack("right", right, T("D")),
+      batteryStack("left", left, letter(T("I"))),
+      batteryStack("right", right, letter(T("D"))),
     }),
   })
 end
 
 local function casePart(battery)
   return ui.column({ key = "case", gap = 12, align = "center" }, {
-    ui.glyph({ key = "case-img", name = "device-airpods-case", size = 76, color = "on_surface" }),
-    batteryStack("case-b", battery),
+    spinning("case", "device-airpods-case"),
+    batteryStack("case-b", battery, ui.glyph({ name = "device-airpods-case", size = 13, color = common.SECONDARY })),
   })
 end
 
@@ -96,7 +114,7 @@ function render()
         ui.glyph({ name = "x", size = 16, color = "on_surface/0.7" }),
       }),
     }),
-    ui.row({ key = "parts", gap = 24, align = "end", justify = "center" }, {
+    ui.row({ key = "parts", gap = 16, align = "end", justify = "center" }, {
       pods((common.field(state, "left")), (common.field(state, "right"))),
       casePart((common.field(state, "case"))),
     }),
@@ -107,13 +125,24 @@ end
 function onOpen(context)
   state = common.decode(context) or state
   openedAt = os.time()
+  spinStartMs, spinFrame = noctalia.nowMs(), 0
   panel.setWantsSecondTicks(true)
+  pcall(panel.setNeedsFrameTick, true)   -- versiones sin la función: la caja queda quieta
   render()
 end
 
 function onIpc(event, payload)
   if event == "state" then
     state = common.decode(payload) or state
+    render()
+  end
+end
+
+-- Se llama en cada fotograma de la pantalla: solo se redibuja al cambiar de imagen.
+function onFrameTick()
+  local frame = math.floor((noctalia.nowMs() - spinStartMs) * SPIN_FPS / 1000) % SPIN_FRAMES
+  if frame ~= spinFrame then
+    spinFrame = frame
     render()
   end
 end
@@ -129,4 +158,5 @@ end
 function onClose()
   openedAt = 0
   panel.setWantsSecondTicks(false)
+  pcall(panel.setNeedsFrameTick, false)
 end

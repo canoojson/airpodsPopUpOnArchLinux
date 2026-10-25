@@ -15,4 +15,8 @@ Este proyecto no contiene código de terceros. La interpretación de los protoco
 
 El formato cifrado del anuncio de la caja (`07 11 06 …`), la reutilización de la clave de cifrado para descifrarlo y el significado de sus flags se documentaron en este proyecto (ver `docs/findings.md`).
 
+## Imágenes
+
+Los auriculares y la caja que giran en el popup de Noctalia (`integrations/noctalia/airpods/assets/buds/` y `assets/case/`) están renderizados a partir de ["Air Pods Pro"](https://skfb.ly/6TFNE) de bashoot, con licencia [Creative Commons Attribution 4.0](http://creativecommons.org/licenses/by/4.0/). Cambios: auriculares y caja por separado, la caja con la tapa cerrada, y se han añadido la iluminación y el giro.
+
 AirPods, AirPods Pro y Apple son marcas de Apple Inc. Este proyecto no está afiliado ni respaldado por Apple.
