@@ -356,6 +356,7 @@ Si tienes [UxPlay](https://github.com/FDH2/UxPlay) como receptor AirPlay en el P
 - Mientras suena el iPhone por AirPlay, el panel muestra qué suena y un **control de volumen solo para el iPhone**, sin tocar el del resto. También desde la terminal: `airpodsctl airplay 60`.
 - Si el iPhone se lleva los AirPods con el PC sonando y UxPlay en marcha, `airpodsd` te recuerda esta opción con una notificación, como mucho una vez al día. Se desactiva en el ⚙ o con `airpodsctl config set airplay_hint false`.
 - `airpodsd` reconoce UxPlay por su interfaz MPRIS (`org.mpris.MediaPlayer2.uxplay`) y su flujo de audio en PipeWire. Sin UxPlay, todo esto no aparece.
+- **Vídeo desincronizado** (los labios van por delante de la voz): el iPhone retrasa la imagen según la latencia que le anuncia UxPlay (0,25 s por defecto), que no cuenta el Bluetooth de los AirPods. Añade `al 1.0` a tu `~/.config/uxplayrc` y reinicia UxPlay; si te pasas, prueba valores entre 0.5 y 1.
 
 ### Ajustes (⚙)
 
