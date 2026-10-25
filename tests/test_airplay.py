@@ -1,4 +1,6 @@
 """El iPhone por AirPlay (UxPlay) a la vez que el PC."""
+import pytest
+
 from airpods_linux import airplay
 
 UX = {"index": 42, "corked": False,
@@ -47,3 +49,30 @@ def test_aviso_una_vez_al_dia():
     assert h.should_hint(100, True, True)
     assert not h.should_hint(100 + 3600, True, True)
     assert h.should_hint(100 + airplay.HINT_EVERY_S, True, True)
+
+
+def test_el_tick_mira_el_flujo_aunque_mpris_diga_parado():
+    """Con Música del iPhone el MPRIS de UxPlay se queda en "Stopped": hay que mirar el flujo."""
+    pytest.importorskip("dbus")
+    from airpods_linux.daemon import airplay as apd
+
+    class Sinks:
+        def sink_inputs(self):
+            return [{"index": 7, "corked": False, "properties": {"application.process.binary": "uxplay"},
+                     "volume": {"front-left": {"value_percent": "80%"}}}]
+
+    class Daemon:
+        audio = True
+        sinks = Sinks()
+        config = {}
+        changes = 0
+
+        def changed(self):
+            Daemon.changes += 1
+
+    ctl = apd.AirplayController(Daemon())
+    ctl._running = lambda: True
+    ctl._mpris = lambda: {"PlaybackStatus": "Stopped", "Metadata": {}}
+    ctl.info = airplay.status(True, {"PlaybackStatus": "Stopped"}, [])
+    ctl.tick()
+    assert ctl.info["playing"] is True and ctl.info["stream"] == 7 and ctl.info["volume"] == 80

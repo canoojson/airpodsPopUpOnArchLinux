@@ -53,9 +53,10 @@ class AirplayController:
             self.d.changed()
 
     def tick(self) -> bool:
-        """Cada 2 s con UxPlay sonando: su volumen puede cambiar desde el iPhone o pavucontrol.
-        Que empiece a sonar llega por MPRIS (watch)."""
-        if self.info["playing"] or self.info["stream"] is not None:
+        """Cada 2 s con UxPlay en marcha. Su MPRIS no siempre avisa de que suena (con el audio de
+        Música del iPhone se queda en "Stopped"), así que se mira el flujo de PipeWire igualmente;
+        además su volumen puede cambiar desde el iPhone o pavucontrol."""
+        if self.info["running"]:
             self.refresh()
         return True
 
